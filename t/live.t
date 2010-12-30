@@ -7,7 +7,7 @@ unless($ENV{OAUTH_FB_KEY} && $ENV{OAUTH_FB_SECRET}) {
     plan skip_all => 'OAUTH_FB_KEY and OAUTH_FB_SECRET must be set for oauth tests';
 }
 
-plugin 'oauth2', facebook => {
+plugin 'o_auth2', facebook => {
     key    => $ENV{OAUTH_FB_KEY},
     secret => $ENV{OAUTH_FB_SECRET}
 };
