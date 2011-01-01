@@ -1,0 +1,76 @@
+NAME
+    Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
+
+SYNOPSIS
+       plugin 'oauth2',
+           facebook => {
+              key => 'foo',
+              secret => 'bar' 
+           };
+   
+       get '/auth' => sub {
+          my $self=shift;
+          $self->get_token('facebook',callback=>sub {
+             ...
+          });
+       };
+
+DESCRIPTION
+    This Mojolicious plugin allows you to easily authenticate against a
+    OAuth2 provider. It includes configurations for a few popular providers,
+    but you can add your own easily as well.
+
+    Note that OAuth2 requires https, so you need to have the optional
+    Mojolicious dependency required to support it. Call
+
+       $ mojo version
+
+    to check if it is installed.
+
+HELPERS
+  get_token <$provider>, <%args>
+    Will redirect to the provider to allow for authorization, then fetch the
+    token. The token gets provided as a parmeter to the callback function.
+    Usually you want to store the token in a session or similar to use for
+    API requests. Supported arguments:
+
+    callback
+        Callback method to handle the provided token. Gets the token as it's
+        only argument
+
+    error_callback
+        Callback method to handle any error. Gets the failed transaction as
+        it's only argument.
+
+    scope
+        Scope to ask for credentials to. Should be a space separated list.
+
+CONFIGURATION
+  providers
+    Takes a hashref of providers, each one with a hashref of options. For
+    instance:
+
+        plugin 'oauth2', {
+           iusethis => {
+              authorize_url => 'iut.com/auth',
+              token_url => 'iut.com/token',
+              key => 'foo',
+              secret => 'bar',
+        }};
+
+    The plugin includes configurations a few providers, to use those, just
+    set the key and secret. The currently supported providers are:
+
+    facebook
+        OAuth for facebook's graph API, <http://graph.facebook.com/>.
+
+    Twitter
+        Twitter OAuth2 support is not official yet, but this endpoint is in
+        use by the twitter anywhere API.
+
+  AUTHOR
+    Marcus Ramberg <mailto:mramberg@cpan.org>
+
+  LICENSE
+    This software is licensed under the same terms as Perl itself.
+

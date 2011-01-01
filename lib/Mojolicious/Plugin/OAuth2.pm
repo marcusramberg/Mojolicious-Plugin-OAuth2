@@ -12,7 +12,10 @@ __PACKAGE__->attr(providers=>sub {
             authorize_url => "https://graph.facebook.com/oauth/authorize",
             token_url => "https://graph.facebook.com/oauth/access_token",
         },
-        twitter => {},
+        twitter => {
+            authorize_url => "https://oauth.twitter.com/2/authorize",
+            token_url => "https://oauth.twitter.com/2/access_token"
+        },
     };
 });
 
@@ -122,6 +125,8 @@ Callback method to handle any error. Gets the failed transaction as it's only ar
 =item scope
 
 Scope to ask for credentials to. Should be a space separated list.
+
+=back
 
 =head1 CONFIGURATION
 
