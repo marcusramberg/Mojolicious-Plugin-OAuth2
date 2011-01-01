@@ -2,6 +2,7 @@ package Mojolicious::Plugin::OAuth2;
 
 use base qw/Mojolicious::Plugin/;
 use Carp qw/croak/;
+use strict; 
 
 our $VERSION='0.01';
 
@@ -31,7 +32,7 @@ sub register {
     
     $app->renderer->add_helper(
         get_token => sub {
-            my ($c,$provider_id,$callback)= @_;
+            my ($c,$provider_id,$callback,$error_handler)= @_;
             croak "Unknown provider $provider_id" 
                 unless (my $provider=$self->providers->{$provider_id});
             if($c->param('code')) {
@@ -39,18 +40,18 @@ sub register {
                 $fb_url->query->append(
                     client_secret=> $provider->{secret},
                     code => $c->param('code'),
+                    redirect_uri=>$c->url_for->to_abs->to_string,
                 );
-                warn "Doing the async, getting ".$fb_url;
-                $c->client->async->get($fb_url,sub {
+                $c->client->async->get($fb_url => sub {
                     my ($client,$tx)=@_;
-                    if ($res=$tx->success) {
-                        my $qp=Mojo::Parameters->new($tx->body);
-			warn "Doing callback call";
-                        $callback_url->($qp->param('access_token') );
+                    if (my $res=$tx->success) {
+                        my $qp=Mojo::Parameters->new($res->body);
+                        &$callback($qp->param('access_token') );
                     }
                     else {
-                        my ($error,$code)=$tx->error;
-                        croak "Failed to get access token: $error ($code)";
+                        my ($err)=$tx->error;
+                        warn("Fail: $err");
+                        &$error_handler($tx) if($error_handler);
                     }
                 })->start;
             } else {

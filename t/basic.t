@@ -35,11 +35,14 @@ get 'fake_auth' => sub {
 
 get 'fake_token' => sub {
     my $self=shift;
-    if($self->param('client_id') && 
-       $self->param('callback_url') && 
+    if($self->param('client_secret') && 
+       $self->param('redirect_uri') && 
        $self->param('code')) {
            my $qp=Mojo::Parameters->new(access_token=>'fake_token',lifetime=>3600);
-        $self->render(text=>'to_string');
+        $self->render(text=>$qp->to_string);
+    }
+    else {
+        $self->render(status=>404,text=>"FAIL OVERFLOW");
     }
 };
 
