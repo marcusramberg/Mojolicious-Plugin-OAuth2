@@ -1,4 +1,3 @@
-use Test::More;
 use Mojolicious::Lite;
 use Test::Mojo;
 use Test::More;
@@ -15,15 +14,16 @@ plugin 'o_auth2', test => {
 
 get '/oauth' => sub { 
     my $self=shift;
-    $self->get_token('test', sub {
+    $self->get_token('test', callback => sub {
         my $token=shift;
         $self->render(text=>'Token '.$token);
-    });
+    },
+    scope => 'fakescope');
 };
 
 get 'fake_auth' => sub {
     my $self=shift;
-    if ($self->param('client_id') && $self->param('redirect_uri')) {
+    if ($self->param('client_id') && $self->param('redirect_uri') &&$self->param('scope')) {
         my $return=Mojo::URL->new($self->param('redirect_uri'));
         $return->query->append(code=>'fake_code');
         $self->redirect_to($return);

@@ -14,10 +14,12 @@ plugin 'o_auth2', facebook => {
 
 get '/oauth' => sub { 
     my $self=shift;
-    if(my $token=$self->get_token('facebook')) {
+   $self->get_token('facebook', callback => sub {
+        my $token=shift;
         my $me=$self->client->get('https://graph.facebook.com/me?access_token='.$token)->res->json;
         $self->render(text=>'Hello '.$me->{name});
-    }};
+    });
+};
 
 my $t=Test::Mojo->new;
 

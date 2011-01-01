@@ -32,7 +32,7 @@ sub register {
     
     $app->renderer->add_helper(
         get_token => sub {
-            my ($c,$provider_id,$callback,$error_handler)= @_;
+            my ($c,$provider_id,%args)= @_;
             croak "Unknown provider $provider_id" 
                 unless (my $provider=$self->providers->{$provider_id});
             if($c->param('code')) {
@@ -46,21 +46,21 @@ sub register {
                     my ($client,$tx)=@_;
                     if (my $res=$tx->success) {
                         my $qp=Mojo::Parameters->new($res->body);
-                        &$callback($qp->param('access_token') );
+                        &{$args{callback}}($qp->param('access_token') );
                     }
                     else {
                         my ($err)=$tx->error;
-                        warn("Fail: $err");
-                        &$error_handler($tx) if($error_handler);
+                        &{$args{error_handler}}($tx) if(exists $args{error_handler});
                     }
                 })->start;
             } else {
                 my $fb_url=Mojo::URL->new($provider->{authorize_url});
                 $fb_url->query->append(
-                    scope => 'user_events',
                     client_id=> $provider->{key},
                     redirect_uri=>$c->url_for->to_abs->to_string,
                 );
+                $fb_url->query->append(scope => $args{scope}) 
+                    if exists $args{scope};
                 $c->redirect_to($fb_url);
              }
     });
@@ -82,7 +82,7 @@ Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
    
    get '/auth' => sub {
       my $self=shift;
-      $self->get_token('facebook',sub {
+      $self->get_token('facebook',callback=>sub {
          ...
       });
    };
@@ -102,12 +102,26 @@ to check if it is installed.
 
 =head1 HELPERS
 
-=head2 get_token <$provider>, <$callback>
+=head2 get_token <$provider>, <%args>
 
 Will redirect to the provider to allow for authorization, then fetch the 
 token. The token gets provided as a parmeter to the callback function. 
 Usually you want to store the token in a session or similar to use for 
-API requests. 
+API requests. Supported arguments:
+
+=over 4
+
+=item callback
+
+Callback method to handle the provided token. Gets the token as it's only argument
+
+=item error_callback
+
+Callback method to handle any error. Gets the failed transaction as it's only argument.
+
+=item scope
+
+Scope to ask for credentials to. Should be a space separated list.
 
 =head1 CONFIGURATION
 
