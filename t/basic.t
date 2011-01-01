@@ -3,20 +3,22 @@ use Mojolicious::Lite;
 use Test::Mojo;
 use Test::More;
 
+my $t=Test::Mojo->new;
+my $port = $t->client->test_server;
 
 plugin 'o_auth2', test => {
-    authorize_url => ('/fake_auth'),
-    token_url => ('/fake_token'),
+    authorize_url => Mojo::URL->new("http://localhost:$port/fake_auth"),
+    token_url => Mojo::URL->new("http://localhost:$port/fake_token"),
     key    => 'fake_key',
     secret => 'fake_secret',
 };
 
 get '/oauth' => sub { 
     my $self=shift;
-    if(my $token=$self->get_token('test')) {
-        
+    $self->get_token('test', sub {
+        my $token=shift;
         $self->render(text=>'Token '.$token);
-    }
+    });
 };
 
 get 'fake_auth' => sub {
@@ -41,7 +43,6 @@ get 'fake_token' => sub {
     }
 };
 
-my $t=Test::Mojo->new;
 
 $t->get_ok('/oauth')->status_is(302); # ->content_like(qr/bar/);
 my $location=Mojo::URL->new($t->tx->res->headers->location);
@@ -51,4 +52,6 @@ $t->get_ok($location)->status_is(302);
 my $res=Mojo::URL->new($t->tx->res->headers->location);
 is($res->path,$callback_url->path,'Returns to the right place');
 is($res->query->param('code'),'fake_code','Includes fake code');
+$t->get_ok($res)->status_is(200)->content_like(qr/fake_token/);
+
 done_testing;

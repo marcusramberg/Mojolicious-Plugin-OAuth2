@@ -15,7 +15,6 @@ __PACKAGE__->attr(providers=>sub {
     };
 });
 
-use Data::Dumper;
 sub register {
     my ($self,$app,$config)=@_;
     my $providers=$self->providers;
@@ -32,23 +31,28 @@ sub register {
     
     $app->renderer->add_helper(
         get_token => sub {
-            my ($c,$provider_id)= @_;
+            my ($c,$provider_id,$callback)= @_;
             croak "Unknown provider $provider_id" 
                 unless (my $provider=$self->providers->{$provider_id});
             if($c->param('code')) {
                 my $fb_url=Mojo::URL->new($provider->{token_url});
                 $fb_url->query->append(
                     client_secret=> $provider->{secret},
-                    code => $self->param('code'),
+                    code => $c->param('code'),
                 );
-                $self->client->async->get($fb_url,sub {
-                    my $tx=shift;
+                warn "Doing the async, getting ".$fb_url;
+                $c->client->async->get($fb_url,sub {
+                    my ($client,$tx)=@_;
                     if ($res=$tx->success) {
                         my $qp=Mojo::Parameters->new($tx->body);
-                        $c->stash( oauth2_access_token => $qp->param('access_token') );
+			warn "Doing callback call";
+                        $callback_url->($qp->param('access_token') );
+                    }
+                    else {
+                        my ($error,$code)=$tx->error;
+                        croak "Failed to get access token: $error ($code)";
                     }
                 })->start;
-                return $c->stash('oauth2_access_token');
             } else {
                 my $fb_url=Mojo::URL->new($provider->{authorize_url});
                 $fb_url->query->append(
@@ -77,16 +81,19 @@ Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
    
    get '/auth' => sub {
       my $self=shift;
-      if(my $token = $self->get_token('facebook') {
+      $self->get_token('facebook',sub {
          ...
-      }
+      });
    };
 
 =head1 DESCRIPTION
 
-This Mojolicious plugin allows you to easily authenticate against a OAuth2 provider. It includes configurations for a few popular providers, but you can add your own easily as well.
+This Mojolicious plugin allows you to easily authenticate against a OAuth2 
+provider. It includes configurations for a few popular providers, but you 
+can add your own easily as well.
 
-Note that OAuth2 requires https, so you need to have the optional Mojolicious dependency required to support it. Call
+Note that OAuth2 requires https, so you need to have the optional Mojolicious 
+dependency required to support it. Call
 
    $ mojo version
 
@@ -94,9 +101,12 @@ to check if it is installed.
 
 =head1 HELPERS
 
-=head2 get_token <$provider>
+=head2 get_token <$provider>, <$callback>
 
-Will redirect to the provider to allow for authorization, then fetch the token. Usually you want to store the token in a session or similar to use for API requests. 
+Will redirect to the provider to allow for authorization, then fetch the 
+token. The token gets provided as a parmeter to the callback function. 
+Usually you want to store the token in a session or similar to use for 
+API requests. 
 
 =head1 CONFIGURATION
 
