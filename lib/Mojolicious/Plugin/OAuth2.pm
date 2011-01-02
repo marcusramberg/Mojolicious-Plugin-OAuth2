@@ -42,6 +42,7 @@ sub register {
                 my $fb_url=Mojo::URL->new($provider->{token_url});
                 $fb_url->query->append(
                     client_secret=> $provider->{secret},
+                    client_id=> $provider->{key},
                     code => $c->param('code'),
                     redirect_uri=>$c->url_for->to_abs->to_string,
                 );
@@ -56,6 +57,7 @@ sub register {
                         &{$args{error_handler}}($tx) if(exists $args{error_handler});
                     }
                 })->start;
+                $c->render_later;
             } else {
                 my $fb_url=Mojo::URL->new($provider->{authorize_url});
                 $fb_url->query->append(

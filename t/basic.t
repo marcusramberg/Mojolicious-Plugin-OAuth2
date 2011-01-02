@@ -19,7 +19,7 @@ get '/oauth' => sub {
         $self->render(text=>'Token '.$token);
     },
     scope => 'fakescope');
-};
+} => 'foo';
 
 get 'fake_auth' => sub {
     my $self=shift;
