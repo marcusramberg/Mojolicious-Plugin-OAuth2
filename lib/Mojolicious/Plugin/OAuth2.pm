@@ -46,7 +46,8 @@ sub register {
                     code => $c->param('code'),
                     redirect_uri=>$c->url_for->to_abs->to_string,
                 );
-                $c->client->async->get($fb_url => sub {
+                my $client = $args{async} ? $c->client->async : $c->client;
+                $client->get($fb_url => sub {
                     my ($client,$tx)=@_;
                     if (my $res=$tx->success) {
                         my $qp=Mojo::Parameters->new($res->body);
@@ -57,7 +58,7 @@ sub register {
                         &{$args{error_handler}}($tx) if(exists $args{error_handler});
                     }
                 })->start;
-                $c->render_later;
+                $c->render_later if $args{async};
             } else {
                 my $fb_url=Mojo::URL->new($provider->{authorize_url});
                 $fb_url->query->append(
@@ -127,6 +128,10 @@ Callback method to handle any error. Gets the failed transaction as it's only ar
 =item scope
 
 Scope to ask for credentials to. Should be a space separated list.
+
+=item async
+
+Use async request handling to fetch token.
 
 =back
 

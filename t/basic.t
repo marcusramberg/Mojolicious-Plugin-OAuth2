@@ -18,6 +18,7 @@ get '/oauth' => sub {
         my $token=shift;
         $self->render(text=>'Token '.$token);
     },
+    async => 1,
     scope => 'fakescope');
 } => 'foo';
 
