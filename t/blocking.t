@@ -6,8 +6,8 @@ my $t=Test::Mojo->new;
 my $port = $t->client->test_server;
 
 plugin 'o_auth2', test => {
-    authorize_url => Mojo::URL->new("http://localhost:$port/fake_auth"),
-    token_url => Mojo::URL->new("http://localhost:$port/fake_token"),
+    authorize_url => "/fake_auth",
+    token_url => "/fake_token",
     key    => 'fake_key',
     secret => 'fake_secret',
 };
@@ -18,8 +18,7 @@ get '/oauth' => sub {
         my $token=shift;
         $self->render(text=>'Token '.$token);
     },
-    error_handler => sub { status=>500,$self->render(text=>'oauth failed to get'.shift->req->uri)},
-    async => 1,
+    error_handler => sub { $self->render(status=>500,text=>'oauth failed to get'.shift->req->url)},
     scope => 'fakescope');
 } => 'foo';
 

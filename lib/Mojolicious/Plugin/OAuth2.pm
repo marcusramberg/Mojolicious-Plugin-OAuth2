@@ -47,7 +47,7 @@ sub register {
                     redirect_uri=>$c->url_for->to_abs->to_string,
                 );
                 my $client = $args{async} ? $c->client->async : $c->client;
-                $client->get($fb_url => sub {
+                $client->get($fb_url->to_abs => sub {
                     my ($client,$tx)=@_;
                     if (my $res=$tx->success) {
                         my $qp=Mojo::Parameters->new($res->body);
