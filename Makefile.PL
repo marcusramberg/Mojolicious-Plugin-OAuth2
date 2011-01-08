@@ -26,12 +26,9 @@ WriteMakefile(
         : ( META_MERGE => {
                 requires  => {perl => '5.008007'},
                 resources => {
-                    homepage => 'http://mojolicious.org',
                     license  => 'http://dev.perl.org/licenses/',
-                    MailingList =>
-                      'http://groups.google.com/group/mojolicious',
-                    repository => 'http://github.com/kraih/mojo',
-                    bugtracker => 'http://github.com/kraih/mojo/issues'
+                    repository => 'http://github.com/kraih/mojolicious-plugin-oauth2',
+                    bugtracker => 'http://github.com/kraih/mojolicious-plugin-oauth2/issues'
                 },
                 no_index => {directory => [qw/t/]}
             },
