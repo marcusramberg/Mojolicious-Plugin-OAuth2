@@ -12,9 +12,13 @@ __PACKAGE__->attr(providers=>sub {
             authorize_url => "https://graph.facebook.com/oauth/authorize",
             token_url => "https://graph.facebook.com/oauth/access_token",
         },
-        twitter => {
-            authorize_url => "https://oauth.twitter.com/2/authorize",
-            token_url => "https://oauth.twitter.com/2/access_token"
+        dailymotion => {
+            authorize_url => "https:/api.dailymotion.com/oauth/authorize",
+            token_url => "https:/api.dailymotion.com/oauth/token"
+        },
+        gowalla => {
+            authorize_url => "https://gowalla.com/api/oauth/new",
+            token_url     => "https://api.gowalla.com/api/oauth/token",
         },
     };
 });
@@ -157,9 +161,13 @@ The plugin includes configurations a few providers, to use those, just set the k
 
 OAuth for facebook's graph API, L<http://graph.facebook.com/>.
 
-=item Twitter
+=item dailymotion
 
-Twitter OAuth2 support is not official yet, but this endpoint is in use by the twitter anywhere API.
+Authentication for Dailymotion video site.
+
+=item gowalla
+
+Gowalla.com authentication.
 
 =back
 
