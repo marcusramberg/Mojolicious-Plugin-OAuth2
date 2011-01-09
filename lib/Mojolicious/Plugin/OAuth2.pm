@@ -4,7 +4,7 @@ use base qw/Mojolicious::Plugin/;
 use Carp qw/croak/;
 use strict; 
 
-our $VERSION='0.01';
+our $VERSION='0.02';
 
 __PACKAGE__->attr(providers=>sub {
     return {
@@ -86,7 +86,7 @@ Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
 
 =head1 SYNOPSIS 
 
-   plugin 'oauth2',
+   plugin 'o_auth2',
        facebook => {
           key => 'foo',
           secret => 'bar' 

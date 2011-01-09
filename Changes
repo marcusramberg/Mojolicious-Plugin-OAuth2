@@ -1,5 +1,7 @@
-0.2
+0.02   2011-01-09 18:58:00
+    - Fixed code example in synopsis
     - Rename callback* to on_*
-0.1    2011-01-08 11:55:00
+
+0.01   2011-01-08 11:55:00
 
     - Initial release
