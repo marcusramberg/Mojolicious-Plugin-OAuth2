@@ -52,8 +52,7 @@ sub register {
                     code => $c->param('code'),
                     redirect_uri=>$c->url_for->to_abs->to_string,
                 );
-                my $client = $args{async} ? $c->client->async : $c->client;
-                $client->get($fb_url->to_abs => sub {
+                $c->ua->get($fb_url->to_abs => sub {
                     my ($client,$tx)=@_;
                     if (my $res=$tx->success) {
                         my $qp=Mojo::Parameters->new($res->body);
@@ -63,7 +62,7 @@ sub register {
                         my ($err)=$tx->error;
                         &{$args{error_handler}}($tx) if(exists $args{error_handler});
                     }
-                })->start;
+                });
                 $c->render_later if $args{async};
             } else {
                 my $fb_url=Mojo::URL->new($provider->{authorize_url});
