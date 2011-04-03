@@ -1,3 +1,8 @@
+0.1    2011-04-03 02:01:00
+
+    - Update to use UserAgent rather than the deprecated
+      Client.
+
 0.02   2011-01-09 18:58:00
     - Fixed code example in synopsis
     - Rename callback* to on_*
