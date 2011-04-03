@@ -52,18 +52,31 @@ sub register {
                     code => $c->param('code'),
                     redirect_uri=>$c->url_for->to_abs->to_string,
                 );
-                $c->ua->get($fb_url->to_abs => sub {
-                    my ($client,$tx)=@_;
+                if ($args{async}) {
+                    $c->ua->get($fb_url->to_abs => sub {
+                        my ($client,$tx)=@_;
+                        if (my $res=$tx->success) {
+                            my $qp=Mojo::Parameters->new($res->body);
+                            &{$args{callback}}($qp->param('access_token') );
+                        }
+                        else {
+                            my ($err)=$tx->error;
+                            &{$args{error_handler}}($tx) if(exists $args{error_handler});
+                        }
+                        });
+                        $c->render_later;
+                }
+                else {
+                    my $tx=$c->ua->get($fb_url->to_abs);
                     if (my $res=$tx->success) {
-                        my $qp=Mojo::Parameters->new($res->body);
-                        &{$args{callback}}($qp->param('access_token') );
-                    }
-                    else {
-                        my ($err)=$tx->error;
-                        &{$args{error_handler}}($tx) if(exists $args{error_handler});
-                    }
-                });
-                $c->render_later if $args{async};
+                         my $qp=Mojo::Parameters->new($res->body);
+                         &{$args{callback}}($qp->param('access_token') );
+                     }
+                     else {
+                         my ($err)=$tx->error;
+                         &{$args{error_handler}}($tx) if(exists $args{error_handler});
+                     }
+                }
             } else {
                 my $fb_url=Mojo::URL->new($provider->{authorize_url});
                 $fb_url->query->append(
