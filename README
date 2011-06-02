@@ -2,7 +2,7 @@ NAME
     Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
 
 SYNOPSIS
-       plugin 'oauth2',
+       plugin 'o_auth2',
            facebook => {
               key => 'foo',
               secret => 'bar' 
@@ -50,7 +50,7 @@ CONFIGURATION
     Takes a hashref of providers, each one with a hashref of options. For
     instance:
 
-        plugin 'oauth2', {
+        plugin 'o_auth2', {
            iusethis => {
               authorize_url => 'iut.com/auth',
               token_url => 'iut.com/token',
