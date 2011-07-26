@@ -3,11 +3,12 @@ use Test::Mojo;
 use Test::More;
 
 my $t=Test::Mojo->new;
-my $port = $t->ua->test_server;
+my $host = $t->ua->test_server->host;
+my $port = $t->ua->test_server->port;
 
 plugin 'o_auth2', test => {
-    authorize_url => Mojo::URL->new("http://localhost:$port/fake_auth"),
-    token_url => Mojo::URL->new("http://localhost:$port/fake_token"),
+    authorize_url => Mojo::URL->new("http://$host:$port/fake_auth"),
+    token_url => Mojo::URL->new("http://$host:$port/fake_token"),
     key    => 'fake_key',
     secret => 'fake_secret',
 };
