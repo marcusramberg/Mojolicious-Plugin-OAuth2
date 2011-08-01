@@ -1,3 +1,6 @@
+0.2    2011-04-03 02:01:00
+    - Fix test suite on newer mojolicious (minimalist)
+    - Fix live test to check for 301 redirect.
 0.1    2011-04-03 02:01:00
 
     - Update to use UserAgent rather than the deprecated
