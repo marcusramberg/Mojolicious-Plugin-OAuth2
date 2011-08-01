@@ -23,6 +23,6 @@ get '/oauth' => sub {
 
 my $t=Test::Mojo->new;
 
-$t->get_ok('/oauth')->status_is(301); # ->content_like(qr/bar/);
+$t->get_ok('/oauth')->status_is(302); # ->content_like(qr/bar/);
 
 done_testing;
