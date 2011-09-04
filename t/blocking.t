@@ -5,7 +5,7 @@ use Test::More;
 my $t=Test::Mojo->new;
 my $port = $t->ua->test_server;
 
-plugin 'o_auth2', test => {
+plugin 'OAuth2', test => {
     authorize_url => "/fake_auth",
     token_url => "/fake_token",
     key    => 'fake_key',

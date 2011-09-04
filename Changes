@@ -1,3 +1,5 @@
+0.3    2011-09-04 21:39
+    - Fix tests for recent Mojolicious
 0.2    2011-04-03 02:01:00
     - Fix test suite on newer mojolicious (minimalist)
     - Fix live test to check for 301 redirect.

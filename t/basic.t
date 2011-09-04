@@ -6,7 +6,7 @@ my $t=Test::Mojo->new;
 my $host = $t->ua->test_server->host;
 my $port = $t->ua->test_server->port;
 
-plugin 'o_auth2', test => {
+plugin 'OAuth2', test => {
     authorize_url => Mojo::URL->new("http://$host:$port/fake_auth"),
     token_url => Mojo::URL->new("http://$host:$port/fake_token"),
     key    => 'fake_key',

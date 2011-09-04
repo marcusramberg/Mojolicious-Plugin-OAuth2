@@ -98,7 +98,7 @@ Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
 
 =head1 SYNOPSIS 
 
-   plugin 'o_auth2',
+   plugin 'OAuth2',
        facebook => {
           key => 'foo',
           secret => 'bar' 
