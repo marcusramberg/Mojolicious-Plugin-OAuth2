@@ -36,7 +36,7 @@ get 'fake_auth' => sub {
     }
 };
 
-get 'fake_token' => sub {
+post 'fake_token' => sub {
     my $self=shift;
     if($self->param('client_secret') && 
        $self->param('redirect_uri') && 

@@ -4,7 +4,7 @@ use base qw/Mojolicious::Plugin/;
 use Carp qw/croak/;
 use strict; 
 
-our $VERSION='0.3';
+our $VERSION='0.4';
 
 __PACKAGE__->attr(providers=>sub {
     return {
@@ -20,6 +20,11 @@ __PACKAGE__->attr(providers=>sub {
             authorize_url => "https://gowalla.com/api/oauth/new",
             token_url     => "https://api.gowalla.com/api/oauth/token",
         },
+        google => {
+            authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
+            token_url     => "https://accounts.google.com/o/oauth2/token",
+        },
+        
     };
 });
 
@@ -46,18 +51,18 @@ sub register {
                 unless (my $provider=$self->providers->{$provider_id});
             if($c->param('code')) {
                 my $fb_url=Mojo::URL->new($provider->{token_url});
-                $fb_url->query->append(
-                    client_secret=> $provider->{secret},
-                    client_id=> $provider->{key},
-                    code => $c->param('code'),
-                    redirect_uri=>$c->url_for->to_abs->to_string,
-                );
+                my $args={
+                    client_secret => $provider->{secret},
+                    client_id     => $provider->{key},
+                    code          => $c->param('code'),
+                    redirect_uri  => $c->url_for->to_abs->to_string,
+                    grant_type    => 'authorization_code',
+                };
                 if ($args{async}) {
-                    $c->ua->get($fb_url->to_abs => sub {
+                    $c->ua->post_form($fb_url->to_abs, $args => sub {
                         my ($client,$tx)=@_;
                         if (my $res=$tx->success) {
-                            my $qp=Mojo::Parameters->new($res->body);
-                            &{$args{callback}}($qp->param('access_token') );
+                          &{$args{callback}}($self->_get_auth_token($res));
                         }
                         else {
                             my ($err)=$tx->error;
@@ -67,10 +72,9 @@ sub register {
                         $c->render_later;
                 }
                 else {
-                    my $tx=$c->ua->get($fb_url->to_abs);
+                    my $tx=$c->ua->post_form($fb_url->to_abs,$args);
                     if (my $res=$tx->success) {
-                         my $qp=Mojo::Parameters->new($res->body);
-                         &{$args{callback}}($qp->param('access_token') );
+                         &{$args{callback}}($self->_get_auth_token($res));
                      }
                      else {
                          my ($err)=$tx->error;
@@ -90,6 +94,15 @@ sub register {
     });
 }
 
+sub _get_auth_token {
+  my ($self,$res)=@_;
+  if($res->headers->content_type eq 'application/json') {
+    return $res->json->{access_token};
+  }
+  my $qp=Mojo::Parameters->new($res->body);
+  return $qp->param('access_token');
+}
+
 1;
 
 =head1 NAME
@@ -106,7 +119,7 @@ Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
    
    get '/auth' => sub {
       my $self=shift;
-      $self->get_token('facebook',callback=>sub {
+      $self->get_token('facebook',on_success=>sub {
          ...
       });
    };

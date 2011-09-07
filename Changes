@@ -1,3 +1,6 @@
+0.4    2011-07-06 18:57 
+    - Add support for google oauth2 provider 
+
 0.3    2011-09-04 21:39
     - Fix tests for recent Mojolicious
 0.2    2011-04-03 02:01:00
