@@ -4,7 +4,7 @@ use base qw/Mojolicious::Plugin/;
 use Carp qw/croak/;
 use strict; 
 
-our $VERSION='0.4';
+our $VERSION='0.5';
 
 __PACKAGE__->attr(providers=>sub {
     return {

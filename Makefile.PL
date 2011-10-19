@@ -24,11 +24,11 @@ WriteMakefile(
     (   $mm < 6.46
         ? ()
         : ( META_MERGE => {
-                requires  => {perl => '5.008007'},
+                requires  => {perl => '5.008007',},
                 resources => {
                     license  => 'http://dev.perl.org/licenses/',
-                    repository => 'http://github.com/kraih/mojolicious-plugin-oauth2',
-                    bugtracker => 'http://github.com/kraih/mojolicious-plugin-oauth2/issues'
+                    repository => 'http://github.com/marcusramberg/mojolicious-plugin-oauth2',
+                    bugtracker => 'http://github.com/marcusramberg/mojolicious-plugin-oauth2/issues'
                 },
                 no_index => {directory => [qw/t/]}
             },
@@ -41,6 +41,7 @@ WriteMakefile(
 
     PREREQ_PM => {
         'Mojolicious'           => '1.64',
+	'IO::Socket::SSL'       => 0,
     },
     test => {TESTS => 't/*.t t/*/*.t t/*/*/*.t t/*/*/*/*.t'}
 );
