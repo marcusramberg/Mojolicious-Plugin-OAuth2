@@ -51,7 +51,7 @@ sub register {
                 unless (my $provider=$self->providers->{$provider_id});
             if($c->param('code')) {
                 my $fb_url=Mojo::URL->new($provider->{token_url});
-                my $args={
+                my $params={
                     client_secret => $provider->{secret},
                     client_id     => $provider->{key},
                     code          => $c->param('code'),
@@ -59,7 +59,7 @@ sub register {
                     grant_type    => 'authorization_code',
                 };
                 if ($args{async}) {
-                    $c->ua->post_form($fb_url->to_abs, $args => sub {
+                    $c->ua->post_form($fb_url->to_abs, $params => sub {
                         my ($client,$tx)=@_;
                         if (my $res=$tx->success) {
                           &{$args{callback}}($self->_get_auth_token($res));
@@ -72,7 +72,7 @@ sub register {
                         $c->render_later;
                 }
                 else {
-                    my $tx=$c->ua->post_form($fb_url->to_abs,$args);
+                    my $tx=$c->ua->post_form($fb_url->to_abs,$params);
                     if (my $res=$tx->success) {
                          &{$args{callback}}($self->_get_auth_token($res));
                      }
