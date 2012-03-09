@@ -1,3 +1,6 @@
+0.6    2012-03-09 00:00:00
+    - Change to use app_url
+   
 0.5    2011-10-19 13:54
     - Add SSL dependency
 

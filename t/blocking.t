@@ -3,7 +3,7 @@ use Test::Mojo;
 use Test::More;
 
 my $t=Test::Mojo->new;
-my $port = $t->ua->test_server;
+my $port = $t->ua->app_url;
 
 plugin 'OAuth2', test => {
     authorize_url => "/fake_auth",
