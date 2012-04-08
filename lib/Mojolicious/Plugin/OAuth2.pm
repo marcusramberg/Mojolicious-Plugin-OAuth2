@@ -66,7 +66,7 @@ sub register {
                         }
                         else {
                             my ($err)=$tx->error;
-                            &{$args{error_handler}}($tx) if(exists $args{error_handler});
+                            $args{error_handler}->($tx) if defined $args{error_handler};
                         }
                         });
                         $c->render_later;
@@ -78,7 +78,7 @@ sub register {
                      }
                      else {
                          my ($err)=$tx->error;
-                         &{$args{error_handler}}($tx) if(exists $args{error_handler});
+                         $args{error_handler}->($tx) if defined $args{error_handler};
                      }
                 }
             } else {
