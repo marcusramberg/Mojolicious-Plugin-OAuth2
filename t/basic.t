@@ -21,12 +21,13 @@ get '/oauth' => sub {
     },
     error_handler => sub { status=>500,$self->render(text=>'oauth failed to get'.shift->req->uri)},
     async => 1,
-    scope => 'fakescope');
+    scope => 'fakescope',
+    authorize_query => { extra => 1 });
 } => 'foo';
 
 get 'fake_auth' => sub {
     my $self=shift;
-    if ($self->param('client_id') && $self->param('redirect_uri') &&$self->param('scope')) {
+    if ($self->param('client_id') && $self->param('redirect_uri') && $self->param('scope') && $self->param('extra')) {
         my $return=Mojo::URL->new($self->param('redirect_uri'));
         $return->query->append(code=>'fake_code');
         $self->redirect_to($return);
