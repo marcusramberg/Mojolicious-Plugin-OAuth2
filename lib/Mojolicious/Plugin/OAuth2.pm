@@ -89,6 +89,8 @@ sub register {
                 );
                 $fb_url->query->append(scope => $args{scope}) 
                     if exists $args{scope};
+                $fb_url->query($args{authorize_query})
+                    if exists $args{authorize_query};
                 $c->redirect_to($fb_url);
              }
     });
