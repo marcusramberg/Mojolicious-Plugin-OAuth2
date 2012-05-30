@@ -13,6 +13,15 @@ plugin 'OAuth2', test => {
     secret => 'fake_secret',
 };
 
+get '/auth_url' => sub {
+    my $self=shift;
+    $self->render_text($self->get_authorize_url('test'));
+};
+get '/auth_url_with_custom_redirect' => sub {
+    my $self=shift;
+    $self->render_text($self->get_authorize_url('test', redirect_uri => 'http://mojolicio.us/foo'));
+};
+
 get '/oauth' => sub { 
     my $self=shift;
     $self->get_token('test', callback => sub {
@@ -60,5 +69,15 @@ my $res=Mojo::URL->new($t->tx->res->headers->location);
 is($res->path,$callback_url->path,'Returns to the right place');
 is($res->query->param('code'),'fake_code','Includes fake code');
 $t->get_ok($res)->status_is(200)->content_like(qr/fake_token/);
+
+$t->get_ok('/auth_url')->status_is(200);
+my $url = Mojo::URL->new($t->tx->res->body);
+like($url, qr{^http://$host:$port/fake_auth}, 'got correct base url');
+is($url->query->param('client_id'), 'fake_key', 'get_authorize_url has correct client_id');
+is($url->query->param('redirect_uri'), "http://$host:$port/auth_url", 'get_authorize_url has correct redirect_uri');
+
+$t->get_ok('/auth_url_with_custom_redirect')->status_is(200);
+$url = Mojo::URL->new($t->tx->res->body);
+is($url->query->param('redirect_uri'), 'http://mojolicio.us/foo', 'get_authorize_url with custom redirect_uri');
 
 done_testing;
