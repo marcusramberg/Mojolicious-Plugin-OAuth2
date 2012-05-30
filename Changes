@@ -1,3 +1,8 @@
+0.7    2012-05-30 12:00:00
+    - separate ua for oauth (Batman)
+    - support extra auth parameters (Judofyr)
+    - Fix broken tests (Peder Stray)
+
 0.6    2012-03-09 00:00:00
     - Change to use app_url
    
