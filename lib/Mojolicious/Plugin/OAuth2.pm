@@ -45,6 +45,7 @@ sub register {
     }
     $self->providers($providers);
     
+    $app->renderer->add_helper(get_authorize_url => sub { $self->_get_authorize_url(@_) });
     $app->renderer->add_helper(
         get_token => sub {
             my ($c,$provider_id,%args)= @_;
@@ -85,18 +86,29 @@ sub register {
                      }
                 }
             } else {
-                my $fb_url=Mojo::URL->new($provider->{authorize_url});
-                $fb_url->query->append(
-                    client_id=> $provider->{key},
-                    redirect_uri=>$c->url_for->to_abs->to_string,
-                );
-                $fb_url->query->append(scope => $args{scope}) 
-                    if exists $args{scope};
-                $fb_url->query($args{authorize_query})
-                    if exists $args{authorize_query};
-                $c->redirect_to($fb_url);
+                $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
              }
     });
+}
+
+sub _get_authorize_url {
+    my ($self,$c,$provider_id,%args)= @_;
+    my $fb_url;
+
+    croak "Unknown provider $provider_id"
+        unless (my $provider=$self->providers->{$provider_id});
+
+    $fb_url=Mojo::URL->new($provider->{authorize_url});
+    $fb_url->query->append(
+        client_id=> $provider->{key},
+        redirect_uri=>$args{'redirect_uri'} || $c->url_for->to_abs->to_string,
+    );
+    $fb_url->query->append(scope => $args{scope})
+        if exists $args{scope};
+    $fb_url->query($args{authorize_query})
+        if exists $args{authorize_query};
+
+    return $fb_url;
 }
 
 sub _get_auth_token {
