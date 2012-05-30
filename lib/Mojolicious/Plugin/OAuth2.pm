@@ -1,6 +1,7 @@
 package Mojolicious::Plugin::OAuth2;
 
 use base qw/Mojolicious::Plugin/;
+use Mojo::UserAgent;
 use Carp qw/croak/;
 use strict; 
 
@@ -27,6 +28,8 @@ __PACKAGE__->attr(providers=>sub {
         
     };
 });
+
+__PACKAGE__->attr(_ua=>sub { Mojo::UserAgent->new });
 
 sub register {
     my ($self,$app,$config)=@_;
@@ -59,7 +62,7 @@ sub register {
                     grant_type    => 'authorization_code',
                 };
                 if ($args{async}) {
-                    $c->ua->post_form($fb_url->to_abs, $params => sub {
+                    $self->_ua->post_form($fb_url->to_abs, $params => sub {
                         my ($client,$tx)=@_;
                         if (my $res=$tx->success) {
                           &{$args{callback}}($self->_get_auth_token($res));
@@ -72,7 +75,7 @@ sub register {
                         $c->render_later;
                 }
                 else {
-                    my $tx=$c->ua->post_form($fb_url->to_abs,$params);
+                    my $tx=$self->_ua->post_form($fb_url->to_abs,$params);
                     if (my $res=$tx->success) {
                          &{$args{callback}}($self->_get_auth_token($res));
                      }
