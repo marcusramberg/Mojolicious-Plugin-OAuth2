@@ -156,6 +156,35 @@ to check if it is installed.
 
 =head1 HELPERS
 
+=head2 get_authorize_url <$provider>, <%args>
+
+Returns a L<Mojo::URL> object which contain the authorize URL. This is
+useful if you want to add the authorize URL as a link to your webpage
+instead of doing a redirect like C<get_token()> does. C<%args> is optional,
+but can contain:
+
+=over 4
+
+=item * authorize_query
+
+Either a hash-ref or an array-ref which can be used to give extra query
+params to the URL.
+
+    $url->query($authorize_url);
+
+=item * redirect_uri
+
+Useful if you want to go back to a different page than what you came from.
+The default is:
+
+    $c->url_for->to_abs->to_string
+
+=item * scope
+
+Scope to ask for credentials to. Should be a space separated list.
+
+=back
+
 =head2 get_token <$provider>, <%args>
 
 Will redirect to the provider to allow for authorization, then fetch the 
