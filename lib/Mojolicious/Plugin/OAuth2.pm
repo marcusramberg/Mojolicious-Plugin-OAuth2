@@ -98,10 +98,12 @@ sub _get_authorize_url {
     croak "Unknown provider $provider_id"
         unless (my $provider=$self->providers->{$provider_id});
 
+    $args{scope} ||= $self->providers->{$provider_id}{scope};
+    $args{redirect_uri} ||= $c->url_for->to_abs->to_string;
     $fb_url=Mojo::URL->new($provider->{authorize_url});
     $fb_url->query->append(
         client_id=> $provider->{key},
-        redirect_uri=>$args{'redirect_uri'} || $c->url_for->to_abs->to_string,
+        redirect_uri=>$args{'redirect_uri'},
     );
     $fb_url->query->append(scope => $args{scope})
         if exists $args{scope};
