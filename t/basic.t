@@ -11,6 +11,7 @@ plugin 'OAuth2', test => {
     token_url => Mojo::URL->new("http://$host:$port/fake_token"),
     key    => 'fake_key',
     secret => 'fake_secret',
+    scope => 'a,b,c',
 };
 
 get '/auth_url' => sub {
@@ -63,7 +64,7 @@ post 'fake_token' => sub {
 $t->get_ok('/oauth')->status_is(302); # ->content_like(qr/bar/);
 my $location=Mojo::URL->new($t->tx->res->headers->location);
 my $callback_url=Mojo::URL->new($location->query->param('redirect_uri'));
-is($location->query->param('client_id'),'fake_key');
+is($location->query->param('client_id'),'fake_key', 'got client_id');
 $t->get_ok($location)->status_is(302);
 my $res=Mojo::URL->new($t->tx->res->headers->location);
 is($res->path,$callback_url->path,'Returns to the right place');
@@ -73,6 +74,7 @@ $t->get_ok($res)->status_is(200)->content_like(qr/fake_token/);
 $t->get_ok('/auth_url')->status_is(200);
 my $url = Mojo::URL->new($t->tx->res->body);
 like($url, qr{^http://$host:$port/fake_auth}, 'got correct base url');
+is($url->query->param('scope'), 'a,b,c', 'get_authorize_url has correct scope');
 is($url->query->param('client_id'), 'fake_key', 'get_authorize_url has correct client_id');
 is($url->query->param('redirect_uri'), "http://$host:$port/auth_url", 'get_authorize_url has correct redirect_uri');
 
