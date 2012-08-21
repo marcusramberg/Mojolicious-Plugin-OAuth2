@@ -23,7 +23,7 @@ get '/auth_url_with_custom_redirect' => sub {
     $self->render_text($self->get_authorize_url('test', redirect_uri => 'http://mojolicio.us/foo'));
 };
 
-get '/oauth' => sub { 
+get '/oauth-original' => sub { 
     my $self=shift;
     $self->get_token('test', callback => sub {
         my $token=shift;
@@ -34,6 +34,26 @@ get '/oauth' => sub {
     scope => 'fakescope',
     authorize_query => { extra => 1 });
 } => 'foo';
+
+get '/oauth-delayed' => sub { 
+    my $self = shift;
+    Mojo::IOLoop->delay(
+        sub {
+            my $delay = shift;
+            $self->get_token(test => $delay->begin)
+        },
+        sub {
+            my($delay, $token, $tx) = @_;
+            return $self->render_text($tx->res->error) unless $token;
+            return $self->render_text("delayed:$token");
+        },
+    );
+} => 'delay';
+
+get '/oauth-sync' => sub { 
+    my $self = shift;
+    $self->render_text("sync:" .$self->get_token('test'));
+} => 'sync';
 
 get 'fake_auth' => sub {
     my $self=shift;
@@ -50,9 +70,9 @@ get 'fake_auth' => sub {
 post 'fake_token' => sub {
     my $self=shift;
     if($self->param('client_secret') && 
-       $self->param('redirect_uri') && 
-       $self->param('code')) {
-           my $qp=Mojo::Parameters->new(access_token=>'fake_token',lifetime=>3600);
+        $self->param('redirect_uri') && 
+        $self->param('code')) {
+        my $qp=Mojo::Parameters->new(access_token=>'fake_token',lifetime=>3600);
         $self->render(text=>$qp->to_string);
     }
     else {
@@ -60,8 +80,7 @@ post 'fake_token' => sub {
     }
 };
 
-
-$t->get_ok('/oauth')->status_is(302); # ->content_like(qr/bar/);
+$t->get_ok('/oauth-original')->status_is(302); # ->content_like(qr/bar/);
 my $location=Mojo::URL->new($t->tx->res->headers->location);
 my $callback_url=Mojo::URL->new($location->query->param('redirect_uri'));
 is($location->query->param('client_id'),'fake_key', 'got client_id');
@@ -70,6 +89,15 @@ my $res=Mojo::URL->new($t->tx->res->headers->location);
 is($res->path,$callback_url->path,'Returns to the right place');
 is($res->query->param('code'),'fake_code','Includes fake code');
 $t->get_ok($res)->status_is(200)->content_like(qr/fake_token/);
+
+$res =~ s!/oauth-\w+!/oauth-delayed!;
+$t->get_ok($res)->status_is(200)->content_is("delayed:fake_token");
+
+TODO: {
+    todo_skip 'Cannot run sync request on $t->ua?', 1;
+    $res =~ s!/oauth-\w+!/oauth-sync!;
+    $t->get_ok($res)->status_is(200)->content_is("sync:fake_token");
+}
 
 $t->get_ok('/auth_url')->status_is(200);
 my $url = Mojo::URL->new($t->tx->res->body);
