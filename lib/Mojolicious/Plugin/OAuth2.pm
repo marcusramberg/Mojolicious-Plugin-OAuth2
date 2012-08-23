@@ -48,6 +48,7 @@ sub register {
     $app->renderer->add_helper(get_authorize_url => sub { $self->_get_authorize_url(@_) });
     $app->renderer->add_helper(
         get_token => sub {
+            my $cb = (@_ % 2 == 1 and ref $_[-1] eq 'CODE') ? pop : undef;
             my ($c,$provider_id,%args)= @_;
             $args{callback} ||= $args{on_success};
             $args{error_handler} ||= $args{on_failure};
@@ -62,28 +63,29 @@ sub register {
                     redirect_uri  => $c->url_for->to_abs->to_string,
                     grant_type    => 'authorization_code',
                 };
-                if ($args{async}) {
+                if ($args{async} or $cb) {
                     $self->_ua->post_form($fb_url->to_abs, $params => sub {
                         my ($client,$tx)=@_;
                         if (my $res=$tx->success) {
-                          &{$args{callback}}($self->_get_auth_token($res));
+                            my $token = $self->_get_auth_token($res);
+                            $cb ? $self->$cb($token, $tx) : $args{callback}->($token);
                         }
                         else {
-                            my ($err)=$tx->error;
-                            $args{error_handler}->($tx) if defined $args{error_handler};
+                            $cb ? $self->$cb(undef, $tx) : $args{callback} ? $args{callback}->($tx) : 'noop';
                         }
-                        });
-                        $c->render_later;
+                    });
+                    $c->render_later;
                 }
                 else {
                     my $tx=$self->_ua->post_form($fb_url->to_abs,$params);
                     if (my $res=$tx->success) {
-                         &{$args{callback}}($self->_get_auth_token($res));
-                     }
-                     else {
-                         my ($err)=$tx->error;
-                         $args{error_handler}->($tx) if defined $args{error_handler};
-                     }
+                        my $token = $self->_get_auth_token($res);
+                        $args{callback}->($token) if $args{callback};
+                        return $token;
+                    }
+                    elsif($args{error_handler}) {
+                        $args{error_handler}->($tx);
+                    }
                 }
             } else {
                 $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
@@ -142,6 +144,23 @@ Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
          ...
       });
    };
+
+   get '/auth' => sub {
+      my $self = shift;
+      Mojo::IOLoop->delay(
+          sub {
+              my $delay = shift;
+              $self->get_token(facebook => $delay->begin)
+          },
+          sub {
+              my($delay, $token, $tx) = @_;
+              return $self->render_text($tx->res->error) unless $token;
+              return $self->render_text($token);
+          },
+      );
+   };
+
+   my $token = $self->get_token('facebook'); # synchronous request
 
 =head1 DESCRIPTION
 
@@ -211,6 +230,18 @@ Scope to ask for credentials to. Should be a space separated list.
 =item async
 
 Use async request handling to fetch token.
+
+=item delay
+
+    $self->get_token($provider => ..., sub {
+        my($oauth2, $token, $tx) = @_;
+        ...
+    })
+
+"delay" is not an key in the C<%args> hash, but rather a callback you can give
+at the end of the argument list. This callback will then force "async", and
+be used as both a success and error handle: C<$token> will contain a string on
+success and undefined on error.
 
 =back
 
