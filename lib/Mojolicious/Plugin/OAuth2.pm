@@ -14,12 +14,8 @@ __PACKAGE__->attr(providers=>sub {
             token_url => "https://graph.facebook.com/oauth/access_token",
         },
         dailymotion => {
-            authorize_url => "https:/api.dailymotion.com/oauth/authorize",
-            token_url => "https:/api.dailymotion.com/oauth/token"
-        },
-        gowalla => {
-            authorize_url => "https://gowalla.com/api/oauth/new",
-            token_url     => "https://api.gowalla.com/api/oauth/token",
+            authorize_url => "https://api.dailymotion.com/oauth/authorize",
+            token_url => "https://api.dailymotion.com/oauth/token"
         },
         google => {
             authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
