@@ -110,6 +110,8 @@ sub _get_authorize_url {
     );
     $fb_url->query->append(scope => $args{scope})
         if exists $args{scope};
+    $fb_url->query->append(state => $args{state})
+        if exists $args{state};
     $fb_url->query($args{authorize_query})
         if exists $args{authorize_query};
 
@@ -204,6 +206,12 @@ The default is:
 =item * scope
 
 Scope to ask for credentials to. Should be a space separated list.
+
+=item * state
+
+A string that will be sent to the identity provider. When the user returns
+from the identity provider, this exact same string will be carried with the user,
+as a GET parameter called C<state> in the URL that the user will return to.
 
 =back
 
