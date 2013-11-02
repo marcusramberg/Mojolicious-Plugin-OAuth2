@@ -14,12 +14,8 @@ __PACKAGE__->attr(providers=>sub {
             token_url => "https://graph.facebook.com/oauth/access_token",
         },
         dailymotion => {
-            authorize_url => "https:/api.dailymotion.com/oauth/authorize",
-            token_url => "https:/api.dailymotion.com/oauth/token"
-        },
-        gowalla => {
-            authorize_url => "https://gowalla.com/api/oauth/new",
-            token_url     => "https://api.gowalla.com/api/oauth/token",
+            authorize_url => "https://api.dailymotion.com/oauth/authorize",
+            token_url => "https://api.dailymotion.com/oauth/token"
         },
         google => {
             authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
@@ -52,6 +48,7 @@ sub register {
             my ($c,$provider_id,%args)= @_;
             $args{callback} ||= $args{on_success};
             $args{error_handler} ||= $args{on_failure};
+            $args{refuse_handler} ||= $args{on_refuse};
             croak "Unknown provider $provider_id" 
                 unless (my $provider=$self->providers->{$provider_id});
             if($c->param('code')) {
@@ -88,8 +85,12 @@ sub register {
                     }
                 }
             } else {
-                $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
-             }
+                if (($c->param('error') // '') eq 'access_denied' and $args{refuse_handler}) {
+                    $args{refuse_handler}->();
+                } else {
+                    $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
+                }
+            }
     });
 }
 
@@ -271,9 +272,9 @@ OAuth for facebook's graph API, L<http://graph.facebook.com/>.
 
 Authentication for Dailymotion video site.
 
-=item gowalla
+=item google
 
-Gowalla.com authentication.
+Google.com authentication.
 
 =back
 
