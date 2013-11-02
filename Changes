@@ -1,3 +1,7 @@
+0.9    2013-05-20 07:51:00
+    - Update to use new Mojolicious UA format (jht)
+    - Remove deprecated render_text calls
+
 0.8    2012-08-23 22:07:00
     - Add get_authorize_url() helper (Batman)
     - Support sync without callback.

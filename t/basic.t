@@ -16,11 +16,11 @@ plugin 'OAuth2', test => {
 
 get '/auth_url' => sub {
     my $self=shift;
-    $self->render_text($self->get_authorize_url('test'));
+    $self->render(text=>$self->get_authorize_url('test'));
 };
 get '/auth_url_with_custom_redirect' => sub {
     my $self=shift;
-    $self->render_text($self->get_authorize_url('test', redirect_uri => 'http://mojolicio.us/foo'));
+    $self->render(text=>$self->get_authorize_url('test', redirect_uri => 'http://mojolicio.us/foo'));
 };
 
 get '/oauth-original' => sub { 
@@ -44,15 +44,15 @@ get '/oauth-delayed' => sub {
         },
         sub {
             my($delay, $token, $tx) = @_;
-            return $self->render_text($tx->res->error) unless $token;
-            return $self->render_text("delayed:$token");
+            return $self->render(text=>$tx->res->error) unless $token;
+            return $self->render(text=>"delayed:$token");
         },
     );
 } => 'delay';
 
 get '/oauth-sync' => sub { 
     my $self = shift;
-    $self->render_text("sync:" .$self->get_token('test'));
+    $self->render(text=>"sync:" .$self->get_token('test'));
 } => 'sync';
 
 get 'fake_auth' => sub {
