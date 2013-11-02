@@ -105,6 +105,8 @@ sub _get_authorize_url {
     );
     $fb_url->query->append(scope => $args{scope})
         if exists $args{scope};
+    $fb_url->query->append(state => $args{state})
+        if exists $args{state};
     $fb_url->query($args{authorize_query})
         if exists $args{authorize_query};
 
