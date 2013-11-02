@@ -202,6 +202,12 @@ The default is:
 
 Scope to ask for credentials to. Should be a space separated list.
 
+=item * state
+
+A string that will be sent to the identity provider. When the user returns
+from the identity provider, this exact same string will be carried with the user,
+as a GET parameter called C<state> in the URL that the user will return to.
+
 =back
 
 =head2 get_token <$provider>, <%args>
