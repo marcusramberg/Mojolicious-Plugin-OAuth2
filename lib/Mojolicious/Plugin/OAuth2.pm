@@ -267,9 +267,9 @@ OAuth for facebook's graph API, L<http://graph.facebook.com/>.
 
 Authentication for Dailymotion video site.
 
-=item gowalla
+=item google
 
-Gowalla.com authentication.
+Google.com authentication.
 
 =back
 
