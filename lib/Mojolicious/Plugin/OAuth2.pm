@@ -131,7 +131,7 @@ sub _get_auth_token {
 
 =head1 NAME
 
-Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
+Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
 
 =head1 SYNOPSIS 
 
@@ -218,7 +218,7 @@ as a GET parameter called C<state> in the URL that the user will return to.
 =head2 get_token <$provider>, <%args>
 
 Will redirect to the provider to allow for authorization, then fetch the 
-token. The token gets provided as a parmeter to the callback function. 
+token. The token gets provided as a parameter to the callback function. 
 Usually you want to store the token in a session or similar to use for 
 API requests. Supported arguments:
 
