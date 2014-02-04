@@ -64,7 +64,7 @@ sub register {
                     $self->_ua->post($fb_url->to_abs, form => $params => sub {
                         my ($client,$tx)=@_;
                         if (my $res=$tx->success) {
-                            my $token = $self->_get_auth_token($res);
+                            my $token = $self->_get_auth_token($res,$provider->{full_json_response});
                             $cb ? $self->$cb($token, $tx) : $args{callback}->($token);
                         }
                         else {
@@ -76,7 +76,7 @@ sub register {
                 else {
                     my $tx=$self->_ua->post($fb_url->to_abs, form => $params);
                     if (my $res=$tx->success) {
-                        my $token = $self->_get_auth_token($res);
+                        my $token = $self->_get_auth_token($res,$provider->{full_json_response});
                         $args{callback}->($token) if $args{callback};
                         return $token;
                     }
@@ -119,9 +119,9 @@ sub _get_authorize_url {
 }
 
 sub _get_auth_token {
-  my ($self,$res)=@_;
+  my ($self,$res,$full_json_response)=@_;
   if($res->headers->content_type eq 'application/json') {
-    return $res->json->{access_token};
+        return $full_json_response ? $res->json : $res->json->{access_token};
   }
   my $qp=Mojo::Parameters->new($res->body);
   return $qp->param('access_token');
