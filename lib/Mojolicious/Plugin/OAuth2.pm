@@ -120,7 +120,7 @@ sub _get_authorize_url {
 
 sub _get_auth_token {
   my ($self,$res)=@_;
-  if($res->headers->content_type eq 'application/json') {
+  if($res->headers->content_type =~ /([\w\/+]+)(;\s+charset=(\S+))?/i && $1 eq 'application/json') {
     return $res->json->{access_token};
   }
   my $qp=Mojo::Parameters->new($res->body);
