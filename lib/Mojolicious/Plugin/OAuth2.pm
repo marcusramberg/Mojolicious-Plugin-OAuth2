@@ -53,6 +53,7 @@ sub register {
                 unless (my $provider=$self->providers->{$provider_id});
             if($c->param('code')) {
                 my $fb_url=Mojo::URL->new($provider->{token_url});
+                $fb_url->host($args{host}) if exists $args{host};
                 my $params={
                     client_secret => $provider->{secret},
                     client_id     => $provider->{key},
@@ -104,6 +105,7 @@ sub _get_authorize_url {
     $args{scope} ||= $self->providers->{$provider_id}{scope};
     $args{redirect_uri} ||= $c->url_for->to_abs->to_string;
     $fb_url=Mojo::URL->new($provider->{authorize_url});
+    $fb_url->host($args{host}) if exists $args{host};
     $fb_url->query->append(
         client_id=> $provider->{key},
         redirect_uri=>$args{'redirect_uri'},
@@ -189,6 +191,13 @@ but can contain:
 
 =over 4
 
+=item * host
+
+Useful if your provider uses different hosts for accessing different accounts.
+The default is specified in the provider configuration.
+
+    $url->host($host);
+
 =item * authorize_query
 
 Either a hash-ref or an array-ref which can be used to give extra query
@@ -251,6 +260,11 @@ Use async request handling to fetch token.
 at the end of the argument list. This callback will then force "async", and
 be used as both a success and error handle: C<$token> will contain a string on
 success and undefined on error.
+
+=item host
+
+Useful if your provider uses different hosts for accessing different accounts.
+The default is specified in the provider configuration.
 
 =back
 
