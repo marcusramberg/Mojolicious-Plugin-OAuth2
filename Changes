@@ -1,3 +1,8 @@
+1.1    2014-03-13 05:55:00
+    - Update test suite to latest Mojo (Valcho Nedelchev)
+    - Bugfix: When "charset" is included in Content-Type header, token extraction failed. 
+    - fix typos (David Steinbrunner)
+
 1.0    2013-11-02 16:34:00
     -  Add state parameter
     - Handle user's refusal to auth
