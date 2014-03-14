@@ -48,9 +48,10 @@ sub register {
             my ($c,$provider_id,%args)= @_;
             $args{callback} ||= $args{on_success};
             $args{error_handler} ||= $args{on_failure};
-            $args{refuse_handler} ||= $args{on_refuse};
+            my $async = $args{async} || $cb;
             croak "Unknown provider $provider_id" 
                 unless (my $provider=$self->providers->{$provider_id});
+            my $returned_state = $c->param('state');
             if($c->param('code')) {
                 my $fb_url=Mojo::URL->new($provider->{token_url});
                 $fb_url->host($args{host}) if exists $args{host};
@@ -81,16 +82,24 @@ sub register {
                         $args{callback}->($token) if $args{callback};
                         return $token;
                     }
-                    elsif($args{error_handler}) {
-                        $args{error_handler}->($tx);
+                    else {
+                        if($args{error_handler}) {
+                            $args{error_handler}->($tx);
+                        }
+                        my $error = $tx->res->json('/error');
+                        return wantarray ? (undef, {type=>'token',error=>$error, tx=>$tx}, $returned_state) : undef;
                     }
                 }
-            } else {
-                if (($c->param('error') // '') eq 'access_denied' and $args{refuse_handler}) {
-                    $args{refuse_handler}->();
-                } else {
-                    $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
+            } elsif (my $error = $c->param('error')) {
+                if ($async) {
+                    # won't handle this case sinec the $tx param will be missing this time
+                    # from the $cb invocation, which might break backwards compatibility
                 }
+                else {
+                    return wantarray ? (undef, {type=>'auth', error=>$error}, $returned_state) : undef;
+                }
+            } else {
+                $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
             }
     });
 }
