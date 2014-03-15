@@ -100,6 +100,7 @@ sub register {
                 }
             } else {
                 $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
+                return wantarray ? ((undef) x 3) : undef;
             }
     });
 }
