@@ -159,8 +159,8 @@ Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
           },
           sub {
               my($delay, $token, $tx) = @_;
-              return $self->render_text($tx->res->error) unless $token;
-              return $self->render_text($token);
+              return $self->render(text => $tx->res->error) unless $token;
+              return $self->render(text => $token);
           },
       );
    };
