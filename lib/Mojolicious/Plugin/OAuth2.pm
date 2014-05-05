@@ -122,7 +122,7 @@ sub _get_authorize_url {
 
 sub _get_auth_token {
   my ($self,$res)=@_;
-  if($res->headers->content_type =~ m!^application/json(;\s+charset=\S+)?$!) {
+  if($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s+charset=\S+)?$!) {
     return $res->json->{access_token};
   }
   my $qp=Mojo::Parameters->new($res->body);
