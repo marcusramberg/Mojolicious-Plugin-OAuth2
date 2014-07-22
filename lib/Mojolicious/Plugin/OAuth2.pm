@@ -55,8 +55,8 @@ sub register {
                 my $fb_url=Mojo::URL->new($provider->{token_url});
                 $fb_url->host($args{host}) if exists $args{host};
                 my $params={
-                    client_secret => $provider->{secret},
-                    client_id     => $provider->{key},
+                    client_secret => $args{secret} || $provider->{secret},
+                    client_id     => $args{key}    || $provider->{key},
                     code          => $c->param('code'),
                     redirect_uri  => $c->url_for->to_abs->to_string,
                     grant_type    => 'authorization_code',
