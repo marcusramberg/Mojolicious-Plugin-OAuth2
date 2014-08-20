@@ -1,3 +1,6 @@
+1.2
+    - Tidy up the code with .perltidyrc and githook-perltidy
+
 1.1    2014-03-13 05:55:00
     - Update test suite to latest Mojo (Valcho Nedelchev)
     - Bugfix: When "charset" is included in Content-Type header, 
