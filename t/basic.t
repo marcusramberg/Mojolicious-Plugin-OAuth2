@@ -31,14 +31,13 @@ get '/oauth-original' => sub {
   my $self = shift;
   $self->get_token(
     'test',
-    callback => sub {
-      my $token = shift;
+    async           => 1,
+    scope           => 'fakescope',
+    authorize_query => {extra => 1},
+    sub {
+      my ($c, $token, $tx) = @_;
       $self->render(text => 'Token ' . $token);
     },
-    error_handler => sub { status => 500, $self->render(text => 'oauth failed to get' . shift->req->uri) },
-    async         => 1,
-    scope         => 'fakescope',
-    authorize_query => {extra => 1}
   );
 } => 'foo';
 
