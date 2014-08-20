@@ -3,129 +3,130 @@ package Mojolicious::Plugin::OAuth2;
 use base qw/Mojolicious::Plugin/;
 use Mojo::UserAgent;
 use Carp qw/croak/;
-use strict; 
+use strict;
 
-our $VERSION='1.1';
+our $VERSION = '1.1';
 
-__PACKAGE__->attr(providers=>sub {
+__PACKAGE__->attr(
+  providers => sub {
     return {
-        facebook => {
-            authorize_url => "https://graph.facebook.com/oauth/authorize",
-            token_url => "https://graph.facebook.com/oauth/access_token",
-        },
-        dailymotion => {
-            authorize_url => "https://api.dailymotion.com/oauth/authorize",
-            token_url => "https://api.dailymotion.com/oauth/token"
-        },
-        google => {
-            authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
-            token_url     => "https://accounts.google.com/o/oauth2/token",
-        },
-        
-    };
-});
+      facebook => {
+        authorize_url => "https://graph.facebook.com/oauth/authorize",
+        token_url     => "https://graph.facebook.com/oauth/access_token",
+      },
+      dailymotion => {
+        authorize_url => "https://api.dailymotion.com/oauth/authorize",
+        token_url     => "https://api.dailymotion.com/oauth/token"
+      },
+      google => {
+        authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
+        token_url     => "https://accounts.google.com/o/oauth2/token",
+      },
 
-__PACKAGE__->attr(_ua=>sub { Mojo::UserAgent->new });
+    };
+  }
+);
+
+__PACKAGE__->attr(_ua => sub { Mojo::UserAgent->new });
 
 sub register {
-    my ($self,$app,$config)=@_;
-    my $providers=$self->providers;
-    foreach my $provider (keys %$config) {
-        if(exists $providers->{$provider}) {
-            foreach my $key (keys %{$config->{$provider}}) {
-                $providers->{$provider}->{$key}=$config->{$provider}->{$key};
-            }
-        } else {
-            $providers->{$provider}=$config->{$provider};
-        }
+  my ($self, $app, $config) = @_;
+  my $providers = $self->providers;
+  foreach my $provider (keys %$config) {
+    if (exists $providers->{$provider}) {
+      foreach my $key (keys %{$config->{$provider}}) {
+        $providers->{$provider}->{$key} = $config->{$provider}->{$key};
+      }
     }
-    $self->providers($providers);
-    
-    $app->renderer->add_helper(get_authorize_url => sub { $self->_get_authorize_url(@_) });
-    $app->renderer->add_helper(
-        get_token => sub {
-            my $cb = (@_ % 2 == 1 and ref $_[-1] eq 'CODE') ? pop : undef;
-            my ($c,$provider_id,%args)= @_;
-            $args{callback} ||= $args{on_success};
-            $args{error_handler} ||= $args{on_failure};
-            $args{refuse_handler} ||= $args{on_refuse};
-            croak "Unknown provider $provider_id" 
-                unless (my $provider=$self->providers->{$provider_id});
-            if($c->param('code')) {
-                my $fb_url=Mojo::URL->new($provider->{token_url});
-                $fb_url->host($args{host}) if exists $args{host};
-                my $params={
-                    client_secret => $provider->{secret},
-                    client_id     => $provider->{key},
-                    code          => $c->param('code'),
-                    redirect_uri  => $c->url_for->to_abs->to_string,
-                    grant_type    => 'authorization_code',
-                };
-                if ($args{async} or $cb) {
-                    $self->_ua->post($fb_url->to_abs, form => $params => sub {
-                        my ($client,$tx)=@_;
-                        if (my $res=$tx->success) {
-                            my $token = $self->_get_auth_token($res);
-                            $cb ? $self->$cb($token, $tx) : $args{callback}->($token);
-                        }
-                        else {
-                            $cb ? $self->$cb(undef, $tx) : $args{callback} ? $args{callback}->($tx) : 'noop';
-                        }
-                    });
-                    $c->render_later;
-                }
-                else {
-                    my $tx=$self->_ua->post($fb_url->to_abs, form => $params);
-                    if (my $res=$tx->success) {
-                        my $token = $self->_get_auth_token($res);
-                        $args{callback}->($token) if $args{callback};
-                        return $token;
-                    }
-                    elsif($args{error_handler}) {
-                        $args{error_handler}->($tx);
-                    }
-                }
-            } else {
-                if (($c->param('error') // '') eq 'access_denied' and $args{refuse_handler}) {
-                    $args{refuse_handler}->();
-                } else {
-                    $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
-                }
+    else {
+      $providers->{$provider} = $config->{$provider};
+    }
+  }
+  $self->providers($providers);
+
+  $app->renderer->add_helper(get_authorize_url => sub { $self->_get_authorize_url(@_) });
+  $app->renderer->add_helper(
+    get_token => sub {
+      my $cb = (@_ % 2 == 1 and ref $_[-1] eq 'CODE') ? pop : undef;
+      my ($c, $provider_id, %args) = @_;
+      $args{callback}       ||= $args{on_success};
+      $args{error_handler}  ||= $args{on_failure};
+      $args{refuse_handler} ||= $args{on_refuse};
+      croak "Unknown provider $provider_id" unless (my $provider = $self->providers->{$provider_id});
+      if ($c->param('code')) {
+        my $fb_url = Mojo::URL->new($provider->{token_url});
+        $fb_url->host($args{host}) if exists $args{host};
+        my $params = {
+          client_secret => $provider->{secret},
+          client_id     => $provider->{key},
+          code          => $c->param('code'),
+          redirect_uri  => $c->url_for->to_abs->to_string,
+          grant_type    => 'authorization_code',
+        };
+        if ($args{async} or $cb) {
+          $self->_ua->post(
+            $fb_url->to_abs,
+            form => $params => sub {
+              my ($client, $tx) = @_;
+              if (my $res = $tx->success) {
+                my $token = $self->_get_auth_token($res);
+                $cb ? $self->$cb($token, $tx) : $args{callback}->($token);
+              }
+              else {
+                $cb ? $self->$cb(undef, $tx) : $args{callback} ? $args{callback}->($tx) : 'noop';
+              }
             }
-    });
+          );
+          $c->render_later;
+        }
+        else {
+          my $tx = $self->_ua->post($fb_url->to_abs, form => $params);
+          if (my $res = $tx->success) {
+            my $token = $self->_get_auth_token($res);
+            $args{callback}->($token) if $args{callback};
+            return $token;
+          }
+          elsif ($args{error_handler}) {
+            $args{error_handler}->($tx);
+          }
+        }
+      }
+      else {
+        if (($c->param('error') // '') eq 'access_denied' and $args{refuse_handler}) {
+          $args{refuse_handler}->();
+        }
+        else {
+          $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
+        }
+      }
+    }
+  );
 }
 
 sub _get_authorize_url {
-    my ($self,$c,$provider_id,%args)= @_;
-    my $fb_url;
+  my ($self, $c, $provider_id, %args) = @_;
+  my $fb_url;
 
-    croak "Unknown provider $provider_id"
-        unless (my $provider=$self->providers->{$provider_id});
+  croak "Unknown provider $provider_id" unless (my $provider = $self->providers->{$provider_id});
 
-    $args{scope} ||= $self->providers->{$provider_id}{scope};
-    $args{redirect_uri} ||= $c->url_for->to_abs->to_string;
-    $fb_url=Mojo::URL->new($provider->{authorize_url});
-    $fb_url->host($args{host}) if exists $args{host};
-    $fb_url->query->append(
-        client_id=> $provider->{key},
-        redirect_uri=>$args{'redirect_uri'},
-    );
-    $fb_url->query->append(scope => $args{scope})
-        if exists $args{scope};
-    $fb_url->query->append(state => $args{state})
-        if exists $args{state};
-    $fb_url->query($args{authorize_query})
-        if exists $args{authorize_query};
+  $args{scope} ||= $self->providers->{$provider_id}{scope};
+  $args{redirect_uri} ||= $c->url_for->to_abs->to_string;
+  $fb_url = Mojo::URL->new($provider->{authorize_url});
+  $fb_url->host($args{host}) if exists $args{host};
+  $fb_url->query->append(client_id => $provider->{key}, redirect_uri => $args{'redirect_uri'},);
+  $fb_url->query->append(scope => $args{scope}) if exists $args{scope};
+  $fb_url->query->append(state => $args{state}) if exists $args{state};
+  $fb_url->query($args{authorize_query}) if exists $args{authorize_query};
 
-    return $fb_url;
+  return $fb_url;
 }
 
 sub _get_auth_token {
-  my ($self,$res)=@_;
-  if($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s+charset=\S+)?$!) {
+  my ($self, $res) = @_;
+  if ($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s+charset=\S+)?$!) {
     return $res->json->{access_token};
   }
-  my $qp=Mojo::Parameters->new($res->body);
+  my $qp = Mojo::Parameters->new($res->body);
   return $qp->param('access_token');
 }
 
