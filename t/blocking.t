@@ -14,12 +14,12 @@ get '/oauth' => sub {
   my $self = shift;
   $self->get_token(
     'test',
-    callback => sub {
-      my $token = shift;
-      $self->render(text => 'Token ' . $token);
+    scope => 'fakescope',
+    sub {
+      my ($c, $token, $tx) = @_;
+      return $self->render(text => 'Token ' . $token) if $token;
+      return $self->render(status => 500, text => 'oauth failed to get' . shift->req->url);
     },
-    error_handler => sub { $self->render(status => 500, text => 'oauth failed to get' . shift->req->url) },
-    scope         => 'fakescope'
   );
 } => 'foo';
 

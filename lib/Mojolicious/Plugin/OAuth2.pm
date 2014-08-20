@@ -2,6 +2,7 @@ package Mojolicious::Plugin::OAuth2;
 
 use base qw/Mojolicious::Plugin/;
 use Mojo::UserAgent;
+use Mojo::Util 'deprecated';
 use Carp qw/croak/;
 use strict;
 
@@ -22,7 +23,6 @@ __PACKAGE__->attr(
         authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
         token_url     => "https://accounts.google.com/o/oauth2/token",
       },
-
     };
   }
 );
@@ -32,6 +32,7 @@ __PACKAGE__->attr(_ua => sub { Mojo::UserAgent->new });
 sub register {
   my ($self, $app, $config) = @_;
   my $providers = $self->providers;
+
   foreach my $provider (keys %$config) {
     if (exists $providers->{$provider}) {
       foreach my $key (keys %{$config->{$provider}}) {
@@ -42,6 +43,7 @@ sub register {
       $providers->{$provider} = $config->{$provider};
     }
   }
+
   $self->providers($providers);
 
   $app->renderer->add_helper(get_authorize_url => sub { $self->_get_authorize_url(@_) });
@@ -49,13 +51,21 @@ sub register {
     get_token => sub {
       my $cb = (@_ % 2 == 1 and ref $_[-1] eq 'CODE') ? pop : undef;
       my ($c, $provider_id, %args) = @_;
+
+      for my $k (qw( callback error_handler refuse_handler on_success on_failure on_refuse )) {
+        next unless $args{$k};
+        deprecated
+          "$k is DEPRECATED in favor of \$c->get_token(\$provider_id, {...}, sub { my (\$c, \$token, \$tx) = @_ })";
+      }
+
       $args{callback}       ||= $args{on_success};
       $args{error_handler}  ||= $args{on_failure};
       $args{refuse_handler} ||= $args{on_refuse};
+
       croak "Unknown provider $provider_id" unless (my $provider = $self->providers->{$provider_id});
+
       if ($c->param('code')) {
         my $fb_url = Mojo::URL->new($provider->{token_url});
-        $fb_url->host($args{host}) if exists $args{host};
         my $params = {
           client_secret => $provider->{secret},
           client_id     => $provider->{key},
@@ -63,6 +73,9 @@ sub register {
           redirect_uri  => $c->url_for->to_abs->to_string,
           grant_type    => 'authorization_code',
         };
+
+        $fb_url->host($args{host}) if exists $args{host};
+
         if ($args{async} or $cb) {
           $self->_ua->post(
             $fb_url->to_abs,
@@ -138,35 +151,22 @@ Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
 
 =head1 SYNOPSIS 
 
-   plugin 'OAuth2',
-       facebook => {
-          key => 'foo',
-          secret => 'bar' 
-       };
-   
-   get '/auth' => sub {
-      my $self=shift;
-      $self->get_token('facebook',on_success=>sub {
-         ...
-      });
-   };
+  get '/auth' => sub {
+    my $self = shift;
+    $self->delay(
+      sub {
+        my $delay = shift;
+        $self->get_token(facebook => $delay->begin)
+      },
+      sub {
+        my($delay, $token, $tx) = @_;
+        return $self->render(text => $tx->res->error) unless $token;
+        return $self->render(text => $token);
+      },
+    );
+  };
 
-   get '/auth' => sub {
-      my $self = shift;
-      Mojo::IOLoop->delay(
-          sub {
-              my $delay = shift;
-              $self->get_token(facebook => $delay->begin)
-          },
-          sub {
-              my($delay, $token, $tx) = @_;
-              return $self->render(text => $tx->res->error) unless $token;
-              return $self->render(text => $token);
-          },
-      );
-   };
-
-   my $token = $self->get_token('facebook'); # synchronous request
+  my $token = $self->get_token('facebook'); # synchronous request
 
 =head1 DESCRIPTION
 
@@ -233,14 +233,6 @@ Usually you want to store the token in a session or similar to use for
 API requests. Supported arguments:
 
 =over 4
-
-=item on_success
-
-Callback method to handle the provided token. Gets the token as it's only argument
-
-=item on_failure
-
-Callback method to handle any error. Gets the failed transaction as it's only argument.
 
 =item scope
 
