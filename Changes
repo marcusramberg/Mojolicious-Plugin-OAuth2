@@ -1,4 +1,4 @@
-1.2
+1.2   2014-09-06 15:48:00
     - Tidy up the code with .perltidyrc and githook-perltidy
     - Started deprecation process of on_xxx handlers
 

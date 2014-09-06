@@ -6,7 +6,7 @@ use Mojo::Util 'deprecated';
 use Carp qw/croak/;
 use strict;
 
-our $VERSION = '1.1';
+our $VERSION = '1.2';
 
 __PACKAGE__->attr(
   providers => sub {
