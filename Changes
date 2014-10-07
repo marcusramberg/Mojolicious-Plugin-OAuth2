@@ -1,3 +1,6 @@
+1.3   2014-10-07 08:00:00
+    - Fix param injection security issue
+
 1.2   2014-09-06 15:48:00
     - Tidy up the code with .perltidyrc and githook-perltidy
     - Started deprecation process of on_xxx handlers

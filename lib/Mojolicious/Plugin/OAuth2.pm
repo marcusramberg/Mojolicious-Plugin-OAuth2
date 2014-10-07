@@ -6,7 +6,7 @@ use Mojo::Util 'deprecated';
 use Carp qw/croak/;
 use strict;
 
-our $VERSION = '1.2';
+our $VERSION = '1.3';
 
 __PACKAGE__->attr(
   providers => sub {
@@ -69,7 +69,7 @@ sub register {
         my $params = {
           client_secret => $provider->{secret},
           client_id     => $provider->{key},
-          code          => $c->param('code'),
+          code          => scalar($c->param('code')),
           redirect_uri  => $c->url_for->to_abs->to_string,
           grant_type    => 'authorization_code',
         };
