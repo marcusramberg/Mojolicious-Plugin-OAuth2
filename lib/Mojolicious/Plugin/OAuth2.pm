@@ -244,6 +244,8 @@ OAuth2 for Facebook's graph API, L<http://graph.facebook.com/>. You can find
 C<key> (App ID) and C<secret> (App Secret) from the app dashboard here:
 L<https://developers.facebook.com/apps>.
 
+See also L<https://developers.facebook.com/docs/reference/dialogs/oauth/>.
+
 =item * dailymotion
 
 Authentication for Dailymotion video site.
@@ -253,6 +255,8 @@ Authentication for Dailymotion video site.
 OAuth2 for Google. You can find the C<key> (CLIENT ID) and C<secret>
 (CLIENT SECRET) from the app console here under "APIs & Auth" and
 "Credentials" in the menu at L<https://console.developers.google.com/project>.
+
+See also L<https://developers.google.com/+/quickstart/>.
 
 =back
 
