@@ -1,19 +1,23 @@
 NAME
-    Mojolicious::Plugin::OAuth2 - Auth against OAUth2 APIs
+    Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
 
 SYNOPSIS
-       plugin 'o_auth2',
-           facebook => {
-              key => 'foo',
-              secret => 'bar' 
-           };
-   
-       get '/auth' => sub {
-          my $self=shift;
-          $self->get_token('facebook',callback=>sub {
-             ...
-          });
-       };
+      get '/auth' => sub {
+        my $self = shift;
+        $self->delay(
+          sub {
+            my $delay = shift;
+            $self->get_token(facebook => $delay->begin)
+          },
+          sub {
+            my($delay, $token, $tx) = @_;
+            return $self->render(text => $tx->res->error) unless $token;
+            return $self->render(text => $token);
+          },
+        );
+      };
+
+      my $token = $self->get_token('facebook'); # synchronous request
 
 DESCRIPTION
     This Mojolicious plugin allows you to easily authenticate against a
@@ -28,29 +32,77 @@ DESCRIPTION
     to check if it is installed.
 
 HELPERS
+  get_authorize_url <$provider>, <%args>
+    Returns a Mojo::URL object which contain the authorize URL. This is
+    useful if you want to add the authorize URL as a link to your webpage
+    instead of doing a redirect like "get_token()" does. %args is optional,
+    but can contain:
+
+    *   host
+
+        Useful if your provider uses different hosts for accessing different
+        accounts. The default is specified in the provider configuration.
+
+            $url->host($host);
+
+    *   authorize_query
+
+        Either a hash-ref or an array-ref which can be used to give extra
+        query params to the URL.
+
+            $url->query($authorize_url);
+
+    *   redirect_uri
+
+        Useful if you want to go back to a different page than what you came
+        from. The default is:
+
+            $c->url_for->to_abs->to_string
+
+    *   scope
+
+        Scope to ask for credentials to. Should be a space separated list.
+
+    *   state
+
+        A string that will be sent to the identity provider. When the user
+        returns from the identity provider, this exact same string will be
+        carried with the user, as a GET parameter called "state" in the URL
+        that the user will return to.
+
   get_token <$provider>, <%args>
     Will redirect to the provider to allow for authorization, then fetch the
-    token. The token gets provided as a parmeter to the callback function.
+    token. The token gets provided as a parameter to the callback function.
     Usually you want to store the token in a session or similar to use for
     API requests. Supported arguments:
 
-    callback
-        Callback method to handle the provided token. Gets the token as it's
-        only argument
-
-    error_callback
-        Callback method to handle any error. Gets the failed transaction as
-        it's only argument.
-
     scope
         Scope to ask for credentials to. Should be a space separated list.
+
+    async
+        Use async request handling to fetch token.
+
+    delay
+            $self->get_token($provider => ..., sub {
+                my($oauth2, $token, $tx) = @_;
+                ...
+            })
+
+        "delay" is not an key in the %args hash, but rather a callback you
+        can give at the end of the argument list. This callback will then
+        force "async", and be used as both a success and error handle:
+        $token will contain a string on success and undefined on error.
+
+    host
+        Useful if your provider uses different hosts for accessing different
+        accounts. The default is specified in the provider configuration.
 
 CONFIGURATION
   providers
     Takes a hashref of providers, each one with a hashref of options. For
     instance:
 
-        plugin 'o_auth2', {
+        plugin 'OAuth2', {
            iusethis => {
               authorize_url => 'iut.com/auth',
               token_url => 'iut.com/token',
@@ -64,9 +116,11 @@ CONFIGURATION
     facebook
         OAuth for facebook's graph API, <http://graph.facebook.com/>.
 
-    Twitter
-        Twitter OAuth2 support is not official yet, but this endpoint is in
-        use by the twitter anywhere API.
+    dailymotion
+        Authentication for Dailymotion video site.
+
+    google
+        Google.com authentication.
 
   AUTHOR
     Marcus Ramberg <mailto:mramberg@cpan.org>
