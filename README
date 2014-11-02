@@ -1,130 +1,191 @@
-NAME
-    Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
+Mojolicious::Plugin::OAUustehr2(C3o)ntributed Perl DocumMeonjtoaltiicoinous::Plugin::OAuth2(3)
 
-SYNOPSIS
-      get '/auth' => sub {
-        my $self = shift;
-        $self->delay(
-          sub {
-            my $delay = shift;
-            $self->get_token(facebook => $delay->begin)
-          },
-          sub {
-            my($delay, $token, $tx) = @_;
-            return $self->render(text => $tx->res->error) unless $token;
-            return $self->render(text => $token);
-          },
-        );
-      };
 
-      my $token = $self->get_token('facebook'); # synchronous request
 
-DESCRIPTION
-    This Mojolicious plugin allows you to easily authenticate against a
-    OAuth2 provider. It includes configurations for a few popular providers,
-    but you can add your own easily as well.
+NNAAMMEE
+       Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
 
-    Note that OAuth2 requires https, so you need to have the optional
-    Mojolicious dependency required to support it. Call
+DDEESSCCRRIIPPTTIIOONN
+       This Mojolicious plugin allows you to easily authenticate against a
+       OAuth2 <http://oauth.net> provider. It includes configurations for a
+       few popular providers, but you can add your own easily as well.
 
-       $ mojo version
+       Note that OAuth2 requires https, so you need to have the optional
+       Mojolicious dependency required to support it. Run the command below to
+       check if IO::Socket::SSL is installed.
 
-    to check if it is installed.
+          $ mojo version
 
-HELPERS
-  get_authorize_url <$provider>, <%args>
-    Returns a Mojo::URL object which contain the authorize URL. This is
-    useful if you want to add the authorize URL as a link to your webpage
-    instead of doing a redirect like "get_token()" does. %args is optional,
-    but can contain:
+   RReeffeerreenncceess
+       ·   <http://oauth.net/documentation/>
 
-    *   host
+       ·   <http://aaronparecki.com/articles/2012/07/29/1/oauth2-simplified>
 
-        Useful if your provider uses different hosts for accessing different
-        accounts. The default is specified in the provider configuration.
+       ·   <http://homakov.blogspot.jp/2013/03/oauth1-oauth2-oauth.html>
 
-            $url->host($host);
+       ·   <http://en.wikipedia.org/wiki/OAuth#OAuth_2.0>
 
-    *   authorize_query
+SSYYNNOOPPSSIISS
+   AAssyynncc eexxaammppllee
+         use Mojolicious::Lite;
 
-        Either a hash-ref or an array-ref which can be used to give extra
-        query params to the URL.
+         plugin "OAuth2" => {
+           facebook => {
+             key => "APP_ID",
+             secret => $ENV{OAUTH2_FACEBOOK_SECRET},
+           },
+         };
 
-            $url->query($authorize_url);
+         get "/auth" => sub {
+           my $self = shift;
+           $self->delay(
+             sub {
+               my $delay = shift;
+               $self->get_token(facebook => $delay->begin)
+             },
+             sub {
+               my($delay, $token, $tx) = @_;
+               return $self->render(text => $tx->res->error) unless $token;
+               $self->session(token => $token);
+               $self->render(text => $token);
+             },
+           );
+         };
 
-    *   redirect_uri
+   SSyynncchhrroonnoouuss eexxaammppllee
+       "get_token" can also be called synchronous, but we encourage the async
+       example above.
 
-        Useful if you want to go back to a different page than what you came
-        from. The default is:
+         my $token = $self->get_token("facebook");
 
-            $c->url_for->to_abs->to_string
+   CCuussttoomm ccoonnnneecctt bbuuttttoonn
+       You can add a "connect link" to your template using the
+       "get_authorize_url" helper. Example template:
 
-    *   scope
+         Click here to log in:
+         <%= link_to "Connect!", get_authorize_url("facebook", scope => "user_about_me email") %>
 
-        Scope to ask for credentials to. Should be a space separated list.
+   CCoonnffiigguurraattiioonn
+       This plugin takes a hash as config, where the keys are provider names
+       and the values are configuration for each provider. Here is a complete
+       example:
 
-    *   state
+         plugin "OAuth2" => {
+           custom_provider => {
+             key => "APP_ID",
+             secret => "SECRET_KEY",
+             authorize_url => "https://provider.example.com/auth",
+             token_url => "https://provider.example.com/token",
+           },
+         };
 
-        A string that will be sent to the identity provider. When the user
-        returns from the identity provider, this exact same string will be
-        carried with the user, as a GET parameter called "state" in the URL
-        that the user will return to.
+       To make it a bit easier, Mojolicious::Plugin::OAuth2 has already values
+       for "authorize_url" and "token_url" for the following providers:
 
-  get_token <$provider>, <%args>
-    Will redirect to the provider to allow for authorization, then fetch the
-    token. The token gets provided as a parameter to the callback function.
-    Usually you want to store the token in a session or similar to use for
-    API requests. Supported arguments:
+       ·   facebook
 
-    scope
-        Scope to ask for credentials to. Should be a space separated list.
+           OAuth2 for Facebook's graph API, <http://graph.facebook.com/>. You
+           can find "key" (App ID) and "secret" (App Secret) from the app
+           dashboard here: <https://developers.facebook.com/apps>.
 
-    async
-        Use async request handling to fetch token.
+           See also
+           <https://developers.facebook.com/docs/reference/dialogs/oauth/>.
 
-    delay
-            $self->get_token($provider => ..., sub {
-                my($oauth2, $token, $tx) = @_;
-                ...
-            })
+       ·   dailymotion
 
-        "delay" is not an key in the %args hash, but rather a callback you
-        can give at the end of the argument list. This callback will then
-        force "async", and be used as both a success and error handle:
-        $token will contain a string on success and undefined on error.
+           Authentication for Dailymotion video site.
 
-    host
-        Useful if your provider uses different hosts for accessing different
-        accounts. The default is specified in the provider configuration.
+       ·   google
 
-CONFIGURATION
-  providers
-    Takes a hashref of providers, each one with a hashref of options. For
-    instance:
+           OAuth2 for Google. You can find the "key" (CLIENT ID) and "secret"
+           (CLIENT SECRET) from the app console here under "APIs & Auth" and
+           "Credentials" in the menu at
+           <https://console.developers.google.com/project>.
 
-        plugin 'OAuth2', {
-           iusethis => {
-              authorize_url => 'iut.com/auth',
-              token_url => 'iut.com/token',
-              key => 'foo',
-              secret => 'bar',
-        }};
+           See also <https://developers.google.com/+/quickstart/>.
 
-    The plugin includes configurations a few providers, to use those, just
-    set the key and secret. The currently supported providers are:
+HHEELLPPEERRSS
+   ggeett__aauutthhoorriizzee__uurrll
+         $url = $c->get_authorize_url($provider => \%args);
 
-    facebook
-        OAuth for facebook's graph API, <http://graph.facebook.com/>.
+       Returns a Mojo::URL object which contain the authorize URL. This is
+       useful if you want to add the authorize URL as a link to your webpage
+       instead of doing a redirect like "get_token" does. %args is optional,
+       but can contain:
 
-    dailymotion
-        Authentication for Dailymotion video site.
+       ·   host
 
-    google
-        Google.com authentication.
+           Useful if your provider uses different hosts for accessing
+           different accounts.  The default is specified in the provider
+           configuration.
 
-  AUTHOR
-    Marcus Ramberg <mailto:mramberg@cpan.org>
+               $url->host($host);
 
-  LICENSE
-    This software is licensed under the same terms as Perl itself.
+       ·   authorize_query
 
+           Either a hash-ref or an array-ref which can be used to give extra
+           query params to the URL.
+
+               $url->query($authorize_url);
+
+       ·   redirect_uri
+
+           Useful if you want to go back to a different page than what you
+           came from.  The default is:
+
+               $c->url_for->to_abs->to_string
+
+       ·   scope
+
+           Scope to ask for credentials to. Should be a space separated list.
+
+       ·   state
+
+           A string that will be sent to the identity provider. When the user
+           returns from the identity provider, this exact same string will be
+           carried with the user, as a GET parameter called "state" in the URL
+           that the user will return to.
+
+   ggeett__ttookkeenn
+         $token = $c->get_token($provider_name => \%args);
+         $c = $c->get_token($provider_name => \%args, sub { my ($c, $token, $tx) = @_; });
+
+       This method will do one of two things:
+
+       1.  If called from an action on your site, it will redirect you to the
+           $provider_name's "authorize_url". This site will probably have some
+           sort of "Connect" and "Reject" button, allowing the visitor to
+           either connect your site with his/her profile on the OAuth2
+           provider's page or not.
+
+       2.  The OAuth2 provider will redirect the user back to your site after
+           clicking the "Connect" or "Reject" button. $token will then contain
+           a string on "Connect" and a false value on "Reject". You can
+           investigate $tx if $token holds a false value.
+
+       Will redirect to the provider to allow for authorization, then fetch
+       the token. The token gets provided as a parameter to the callback
+       function.  Usually you want to store the token in a session or similar
+       to use for API requests. Supported arguments:
+
+       ·   host
+
+           Useful if your provider uses different hosts for accessing
+           different accounts.  The default is specified in the provider
+           configuration.
+
+       ·   scope
+
+           Scope to ask for credentials to. Should be a space separated list.
+
+AAUUTTHHOORR
+       Marcus Ramberg - "mramberg@cpan.org"
+
+       Jan Henning Thorsen - "jhthorsen@cpan.org"
+
+LLIICCEENNSSEE
+       This software is licensed under the same terms as Perl itself.
+
+
+
+perl v5.18.2                      2014-11-02    Mojolicious::Plugin::OAuth2(3)
