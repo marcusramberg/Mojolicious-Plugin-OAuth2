@@ -311,6 +311,26 @@ as a GET parameter called C<state> in the URL that the user will return to.
   $token = $c->get_token($provider_name => \%args);
   $c = $c->get_token($provider_name => \%args, sub { my ($c, $token, $tx) = @_; });
 
+This method will do one of two things:
+
+=over 4
+
+=item 1.
+
+If called from an action on your site, it will redirect you to the
+C<$provider_name>'s C<authorize_url>. This site will probably have some
+sort of "Connect" and "Reject" button, allowing the visitor to either
+connect your site with his/her profile on the OAuth2 provider's page or not.
+
+=item 2.
+
+The OAuth2 provider will redirect the user back to your site after clicking the
+"Connect" or "Reject" button. C<$token> will then contain a string on "Connect"
+and a false value on "Reject". You can investigate
+L<$tx|Mojo::Transaction::HTTP> if C<$token> holds a false value.
+
+=back
+
 Will redirect to the provider to allow for authorization, then fetch the
 token. The token gets provided as a parameter to the callback function.
 Usually you want to store the token in a session or similar to use for
@@ -318,12 +338,12 @@ API requests. Supported arguments:
 
 =over 4
 
-=item host
+=item * host
 
 Useful if your provider uses different hosts for accessing different accounts.
 The default is specified in the provider configuration.
 
-=item scope
+=item * scope
 
 Scope to ask for credentials to. Should be a space separated list.
 
