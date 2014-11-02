@@ -151,15 +151,29 @@ Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
 
 =head1 DESCRIPTION
 
-This Mojolicious plugin allows you to easily authenticate against a OAuth2
-provider. It includes configurations for a few popular providers, but you
-can add your own easily as well.
+This Mojolicious plugin allows you to easily authenticate against a
+L<OAuth2|http://oauth.net> provider. It includes configurations for a few
+popular providers, but you can add your own easily as well.
 
 Note that OAuth2 requires https, so you need to have the optional Mojolicious
 dependency required to support it. Run the command below to check if
 L<IO::Socket::SSL> is installed.
 
    $ mojo version
+
+=head2 References
+
+=over 4
+
+=item * L<http://oauth.net/documentation/>
+
+=item * L<http://aaronparecki.com/articles/2012/07/29/1/oauth2-simplified>
+
+=item * L<http://homakov.blogspot.jp/2013/03/oauth1-oauth2-oauth.html>
+
+=item * L<http://en.wikipedia.org/wiki/OAuth#OAuth_2.0>
+
+=back
 
 =head1 SYNOPSIS
 
