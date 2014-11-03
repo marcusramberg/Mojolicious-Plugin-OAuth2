@@ -149,9 +149,46 @@ sub _get_auth_token {
 
 Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
 
-=head1 SYNOPSIS 
+=head1 DESCRIPTION
 
-  get '/auth' => sub {
+This Mojolicious plugin allows you to easily authenticate against a
+L<OAuth2|http://oauth.net> provider. It includes configurations for a few
+popular providers, but you can add your own easily as well.
+
+Note that OAuth2 requires https, so you need to have the optional Mojolicious
+dependency required to support it. Run the command below to check if
+L<IO::Socket::SSL> is installed.
+
+   $ mojo version
+
+=head2 References
+
+=over 4
+
+=item * L<http://oauth.net/documentation/>
+
+=item * L<http://aaronparecki.com/articles/2012/07/29/1/oauth2-simplified>
+
+=item * L<http://homakov.blogspot.jp/2013/03/oauth1-oauth2-oauth.html>
+
+=item * L<http://en.wikipedia.org/wiki/OAuth#OAuth_2.0>
+
+=back
+
+=head1 SYNOPSIS
+
+=head2 Async example
+
+  use Mojolicious::Lite;
+
+  plugin "OAuth2" => {
+    facebook => {
+      key => "APP_ID",
+      secret => $ENV{OAUTH2_FACEBOOK_SECRET},
+    },
+  };
+
+  get "/auth" => sub {
     my $self = shift;
     $self->delay(
       sub {
@@ -161,33 +198,77 @@ Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
       sub {
         my($delay, $token, $tx) = @_;
         return $self->render(text => $tx->res->error) unless $token;
-        return $self->render(text => $token);
+        $self->session(token => $token);
+        $self->render(text => $token);
       },
     );
   };
 
-  my $token = $self->get_token('facebook'); # synchronous request
+=head2 Synchronous example
 
-=head1 DESCRIPTION
+L</get_token> can also be called synchronous, but we encourage the async
+example above.
 
-This Mojolicious plugin allows you to easily authenticate against a OAuth2 
-provider. It includes configurations for a few popular providers, but you 
-can add your own easily as well.
+  my $token = $self->get_token("facebook");
 
-Note that OAuth2 requires https, so you need to have the optional Mojolicious 
-dependency required to support it. Call
+=head2 Custom connect button
 
-   $ mojo version
+You can add a "connect link" to your template using the L</get_authorize_url>
+helper. Example template:
 
-to check if it is installed. 
+  Click here to log in:
+  <%= link_to "Connect!", get_authorize_url("facebook", scope => "user_about_me email") %>
+
+=head2 Configuration
+
+This plugin takes a hash as config, where the keys are provider names and the
+values are configuration for each provider. Here is a complete example:
+
+  plugin "OAuth2" => {
+    custom_provider => {
+      key => "APP_ID",
+      secret => "SECRET_KEY",
+      authorize_url => "https://provider.example.com/auth",
+      token_url => "https://provider.example.com/token",
+    },
+  };
+
+To make it a bit easier, L<Mojolicious::Plugin::OAuth2> has already
+values for C<authorize_url> and C<token_url> for the following providers:
+
+=over 4
+
+=item * facebook
+
+OAuth2 for Facebook's graph API, L<http://graph.facebook.com/>. You can find
+C<key> (App ID) and C<secret> (App Secret) from the app dashboard here:
+L<https://developers.facebook.com/apps>.
+
+See also L<https://developers.facebook.com/docs/reference/dialogs/oauth/>.
+
+=item * dailymotion
+
+Authentication for Dailymotion video site.
+
+=item * google
+
+OAuth2 for Google. You can find the C<key> (CLIENT ID) and C<secret>
+(CLIENT SECRET) from the app console here under "APIs & Auth" and
+"Credentials" in the menu at L<https://console.developers.google.com/project>.
+
+See also L<https://developers.google.com/+/quickstart/>.
+
+=back
 
 =head1 HELPERS
 
-=head2 get_authorize_url <$provider>, <%args>
+=head2 get_authorize_url
+
+  $url = $c->get_authorize_url($provider => \%args);
 
 Returns a L<Mojo::URL> object which contain the authorize URL. This is
 useful if you want to add the authorize URL as a link to your webpage
-instead of doing a redirect like C<get_token()> does. C<%args> is optional,
+instead of doing a redirect like L</get_token> does. C<%args> is optional,
 but can contain:
 
 =over 4
@@ -225,79 +306,56 @@ as a GET parameter called C<state> in the URL that the user will return to.
 
 =back
 
-=head2 get_token <$provider>, <%args>
+=head2 get_token
 
-Will redirect to the provider to allow for authorization, then fetch the 
-token. The token gets provided as a parameter to the callback function. 
-Usually you want to store the token in a session or similar to use for 
+  $token = $c->get_token($provider_name => \%args);
+  $c = $c->get_token($provider_name => \%args, sub { my ($c, $token, $tx) = @_; });
+
+This method will do one of two things:
+
+=over 4
+
+=item 1.
+
+If called from an action on your site, it will redirect you to the
+C<$provider_name>'s C<authorize_url>. This site will probably have some
+sort of "Connect" and "Reject" button, allowing the visitor to either
+connect your site with his/her profile on the OAuth2 provider's page or not.
+
+=item 2.
+
+The OAuth2 provider will redirect the user back to your site after clicking the
+"Connect" or "Reject" button. C<$token> will then contain a string on "Connect"
+and a false value on "Reject". You can investigate
+L<$tx|Mojo::Transaction::HTTP> if C<$token> holds a false value.
+
+=back
+
+Will redirect to the provider to allow for authorization, then fetch the
+token. The token gets provided as a parameter to the callback function.
+Usually you want to store the token in a session or similar to use for
 API requests. Supported arguments:
 
 =over 4
 
-=item scope
-
-Scope to ask for credentials to. Should be a space separated list.
-
-=item async
-
-Use async request handling to fetch token.
-
-=item delay
-
-    $self->get_token($provider => ..., sub {
-        my($oauth2, $token, $tx) = @_;
-        ...
-    })
-
-"delay" is not an key in the C<%args> hash, but rather a callback you can give
-at the end of the argument list. This callback will then force "async", and
-be used as both a success and error handle: C<$token> will contain a string on
-success and undefined on error.
-
-=item host
+=item * host
 
 Useful if your provider uses different hosts for accessing different accounts.
 The default is specified in the provider configuration.
 
-=back
+=item * scope
 
-=head1 CONFIGURATION
-
-=head2 providers 
-
-Takes a hashref of providers, each one with a hashref of options. For instance:
-
-    plugin 'OAuth2', {
-       iusethis => {
-          authorize_url => 'iut.com/auth',
-          token_url => 'iut.com/token',
-          key => 'foo',
-          secret => 'bar',
-    }};
-
-The plugin includes configurations a few providers, to use those, just set the key and secret. The currently supported providers are:
-
-=over 4
-
-=item facebook
-
-OAuth for facebook's graph API, L<http://graph.facebook.com/>.
-
-=item dailymotion
-
-Authentication for Dailymotion video site.
-
-=item google
-
-Google.com authentication.
+Scope to ask for credentials to. Should be a space separated list.
 
 =back
 
-=head2 AUTHOR
+=head1 AUTHOR
 
-Marcus Ramberg L<mailto:mramberg@cpan.org>
+Marcus Ramberg - C<mramberg@cpan.org>
 
-=head2 LICENSE
+Jan Henning Thorsen - C<jhthorsen@cpan.org>
+
+=head1 LICENSE
 
 This software is licensed under the same terms as Perl itself.
 
