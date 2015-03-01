@@ -2,6 +2,7 @@ package Mojolicious::Plugin::OAuth2;
 
 use Mojo::Base 'Mojolicious::Plugin';
 use Mojo::UserAgent;
+use Mojo::Util 'deprecated';
 use Carp 'croak';
 use strict;
 
@@ -43,10 +44,29 @@ sub register {
 
   $self->providers($providers);
 
-  $app->renderer->add_helper(get_authorize_url => sub { $self->_get_authorize_url(@_) });
+  $app->helper('oauth2.auth_url'  => sub { $self->_get_authorize_url(@_) });
+  $app->helper('oauth2.providers' => sub { $self->providers });
+  $app->helper(
+    'oauth2.get_token' => sub {
+      my $c = shift;
+
+      return $self->_process_response_error($c, @_) if $c->param('error');
+      return $self->_process_response_code($c, @_) if $c->param('code');
+      return $c->redirect_to($self->_get_authorize_url($c, @_));
+    }
+  );
+
+  $app->renderer->add_helper(
+    get_authorize_url => sub {
+      deprecated "get_authorize_url() is DEPRECATED in favor of \$c->oauth2->auth_url(...)";
+      $self->_get_authorize_url(@_);
+    }
+  );
   $app->renderer->add_helper(
     get_token => sub {
       my $c = shift;
+
+      deprecated "get_token() is DEPRECATED in favor of \$c->oauth2->get_token(...)";
 
       if ($c->param('code')) {
         return $self->_handle_code($c, @_);
@@ -146,6 +166,53 @@ sub _handle_error {
   $tx->res->error({message => $error});
   $c->$cb(undef, $tx);
   $c;
+}
+
+sub _process_response_code {
+  my $cb = pop;
+  my ($self, $c, $provider_id, $args) = @_;
+  my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
+  my $token_url = Mojo::URL->new($provider->{token_url});
+  my $params    = {
+    client_secret => $provider->{secret},
+    client_id     => $provider->{key},
+    code          => scalar($c->param('code')),
+    grant_type    => 'authorization_code',
+    redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
+  };
+
+  $token_url->host($args->{host}) if exists $args->{host};
+
+  return $c->delay(
+    sub {
+      my ($delay) = @_;
+      $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
+    },
+    sub {
+      my ($delay, $tx) = @_;
+      my $res = $tx->res;
+      my $token;
+
+      if (my $err = $tx->error) {
+        return $c->$cb($err->{message} || $err->{code}, undef);
+      }
+      elsif ($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+        $token = $res->json->{access_token};
+      }
+      else {
+        $token = Mojo::Parameters->new($res->body)->param('access_token');
+      }
+
+      $c->$cb($token ? '' : 'Unknown error', $token);
+    },
+  );
+}
+
+sub _process_response_error {
+  my $cb = pop;
+  my ($self, $c, $provider_id, $args) = @_;
+
+  $c->$cb($c->param('error_description') || $c->param('error'), undef);
 }
 
 1;
