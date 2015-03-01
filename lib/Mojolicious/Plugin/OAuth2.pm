@@ -91,7 +91,9 @@ sub register {
         }
       }
       elsif (my $error = $c->param('error')) {
-        $c->$cb(undef, $c->tx);
+        my $tx = $c->app->ua->build_tx(GET => $provider->{authorize_url});
+        $tx->res->error({message => $error});
+        $c->$cb(undef, $tx);
       }
       else {
         $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
