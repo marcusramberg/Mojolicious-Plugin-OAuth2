@@ -49,10 +49,10 @@ sub register {
       my $c = shift;
 
       if ($c->param('code')) {
-        return $self->_got_code($c, @_);
+        return $self->_handle_code($c, @_);
       }
       elsif ($c->param('error')) {
-        return $self->_got_error($c, @_);
+        return $self->_handle_error($c, @_);
       }
       else {
         return $c->redirect_to($self->_get_authorize_url($c, @_));
@@ -105,7 +105,7 @@ sub _get_auth_token {
   return $token, $tx;
 }
 
-sub _got_code {
+sub _handle_code {
   my ($self, $c, $provider_id, $args, $cb) = _args(@_);
   my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
   my $token_url = Mojo::URL->new($provider->{token_url});
@@ -136,7 +136,7 @@ sub _got_code {
   }
 }
 
-sub _got_error {
+sub _handle_error {
   my ($self, $c, $provider_id, $args, $cb) = _args(@_);
   my $error = $c->param('error');
 
