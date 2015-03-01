@@ -22,6 +22,7 @@ has providers => sub {
       authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
       token_url     => "https://accounts.google.com/o/oauth2/token",
     },
+    mocked => {authorize_url => '/mocked/oauth/authorize', token_url => '/mocked/oauth/token', secret => 'fake_secret'},
   };
 };
 
@@ -43,6 +44,10 @@ sub register {
   }
 
   $self->providers($providers);
+
+  if ($providers->{mocked}{key}) {
+    $self->_mock_interface($app);
+  }
 
   $app->helper('oauth2.auth_url'  => sub { $self->_get_authorize_url(@_) });
   $app->helper('oauth2.providers' => sub { $self->providers });
@@ -213,6 +218,40 @@ sub _process_response_error {
   my ($self, $c, $provider_id, $args) = @_;
 
   $c->$cb($c->param('error_description') || $c->param('error'), undef);
+}
+
+sub _mock_interface {
+  my ($self, $app) = @_;
+  my $provider = $self->providers->{mocked};
+
+  $self->_ua->server->app($app);
+
+  $app->routes->get(
+    $provider->{authorize_url} => sub {
+      my $c = shift;
+      if ($c->param('client_id') and $c->param('redirect_uri')) {
+        my $return = Mojo::URL->new($c->param('redirect_uri'));
+        $return->query->append(code => 'fake_code');
+        $c->render(text => $c->tag('a', href => $return, sub {'Connect'}));
+      }
+      else {
+        $c->render(text => "Invalid request\n", status => 400);
+      }
+    }
+  );
+
+  $app->routes->post(
+    $provider->{token_url} => sub {
+      my $c = shift;
+      if ($c->param('client_secret') and $c->param('redirect_uri') and $c->param('code')) {
+        my $qp = Mojo::Parameters->new(access_token => 'fake_token', lifetime => 3600);
+        $c->render(text => $qp->to_string);
+      }
+      else {
+        $c->render(status => 404, text => 'FAIL OVERFLOW');
+      }
+    }
+  );
 }
 
 1;
