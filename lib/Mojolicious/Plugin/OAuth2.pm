@@ -10,6 +10,18 @@ our $VERSION = '1.3';
 
 has providers => sub {
   return {
+    eventbrite => {
+      authorize_url => 'https://www.eventbrite.com/oauth/authorize',
+      token_url     => 'https://www.eventbrite.com/oauth/token',
+    },
+    google => {
+      authorize_url => 'https://accounts.google.com/o/oauth2/auth',
+      token_url     => 'https://www.googleapis.com/oauth2/v3/token',
+    },
+    github => {
+      authorize_url => 'https://github.com/login/oauth/authorize',
+      token_url     => 'https://github.com/login/oauth/access_token',
+    },
     facebook => {
       authorize_url => "https://graph.facebook.com/oauth/authorize",
       token_url     => "https://graph.facebook.com/oauth/access_token",
