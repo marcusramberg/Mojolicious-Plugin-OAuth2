@@ -12,11 +12,11 @@ $app->routes->get(
     $c->delay(
       sub {
         my $delay = shift;
-        $c->get_token(test => $delay->begin);
+        $c->oauth2->get_token(test => $delay->begin);
       },
       sub {
-        my ($delay, $token, $tx) = @_;
-        return $c->render(text => $tx->res->error, status => 500) unless $token;
+        my ($delay, $err, $token) = @_;
+        return $c->render(text => $err, status => 500) unless $token;
         return $c->render(text => "Token $token");
       },
     );
