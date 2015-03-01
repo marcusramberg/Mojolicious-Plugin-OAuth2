@@ -1,33 +1,30 @@
 package Mojolicious::Plugin::OAuth2;
 
-use base qw/Mojolicious::Plugin/;
+use Mojo::Base 'Mojolicious::Plugin';
 use Mojo::UserAgent;
-use Mojo::Util 'deprecated';
-use Carp qw/croak/;
+use Carp 'croak';
 use strict;
 
 our $VERSION = '1.3';
 
-__PACKAGE__->attr(
-  providers => sub {
-    return {
-      facebook => {
-        authorize_url => "https://graph.facebook.com/oauth/authorize",
-        token_url     => "https://graph.facebook.com/oauth/access_token",
-      },
-      dailymotion => {
-        authorize_url => "https://api.dailymotion.com/oauth/authorize",
-        token_url     => "https://api.dailymotion.com/oauth/token"
-      },
-      google => {
-        authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
-        token_url     => "https://accounts.google.com/o/oauth2/token",
-      },
-    };
-  }
-);
+has providers => sub {
+  return {
+    facebook => {
+      authorize_url => "https://graph.facebook.com/oauth/authorize",
+      token_url     => "https://graph.facebook.com/oauth/access_token",
+    },
+    dailymotion => {
+      authorize_url => "https://api.dailymotion.com/oauth/authorize",
+      token_url     => "https://api.dailymotion.com/oauth/token"
+    },
+    google => {
+      authorize_url => "https://accounts.google.com/o/oauth2/auth?response_type=code",
+      token_url     => "https://accounts.google.com/o/oauth2/token",
+    },
+  };
+};
 
-__PACKAGE__->attr(_ua => sub { Mojo::UserAgent->new });
+has _ua => sub { Mojo::UserAgent->new };
 
 sub register {
   my ($self, $app, $config) = @_;
@@ -49,98 +46,106 @@ sub register {
   $app->renderer->add_helper(get_authorize_url => sub { $self->_get_authorize_url(@_) });
   $app->renderer->add_helper(
     get_token => sub {
-      my $cb = (@_ % 2 == 1 and ref $_[-1] eq 'CODE') ? pop : undef;
-      my ($c, $provider_id, %args) = @_;
-
-      for my $k (qw( callback error_handler refuse_handler on_success on_failure on_refuse )) {
-        next unless $args{$k};
-        deprecated
-          "$k is DEPRECATED in favor of \$c->get_token(\$provider_id, {...}, sub { my (\$c, \$token, \$tx) = @_ })";
-      }
-
-      $args{callback}       ||= $args{on_success};
-      $args{error_handler}  ||= $args{on_failure};
-      $args{refuse_handler} ||= $args{on_refuse};
-
-      croak "Unknown provider $provider_id" unless (my $provider = $self->providers->{$provider_id});
+      my $c = shift;
 
       if ($c->param('code')) {
-        my $fb_url = Mojo::URL->new($provider->{token_url});
-        my $params = {
-          client_secret => $provider->{secret},
-          client_id     => $provider->{key},
-          code          => scalar($c->param('code')),
-          redirect_uri  => $c->url_for->to_abs->to_string,
-          grant_type    => 'authorization_code',
-        };
-
-        $fb_url->host($args{host}) if exists $args{host};
-
-        if ($args{async} or $cb) {
-          $self->_ua->post(
-            $fb_url->to_abs,
-            form => $params => sub {
-              my ($client, $tx) = @_;
-              if (my $res = $tx->success) {
-                my $token = $self->_get_auth_token($res);
-                $cb ? $self->$cb($token, $tx) : $args{callback}->($token);
-              }
-              else {
-                $cb ? $self->$cb(undef, $tx) : $args{callback} ? $args{callback}->($tx) : 'noop';
-              }
-            }
-          );
-          $c->render_later;
-        }
-        else {
-          my $tx = $self->_ua->post($fb_url->to_abs, form => $params);
-          if (my $res = $tx->success) {
-            my $token = $self->_get_auth_token($res);
-            $args{callback}->($token) if $args{callback};
-            return $token;
-          }
-          elsif ($args{error_handler}) {
-            $args{error_handler}->($tx);
-          }
-        }
+        return $self->_handle_code($c, @_);
+      }
+      elsif ($c->param('error')) {
+        return $self->_handle_error($c, @_);
       }
       else {
-        if (($c->param('error') // '') eq 'access_denied' and $args{refuse_handler}) {
-          $args{refuse_handler}->();
-        }
-        else {
-          $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
-        }
+        return $c->redirect_to($self->_get_authorize_url($c, @_));
       }
     }
   );
 }
 
+sub _args {
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
+  my ($self, $c, $provider_id) = (shift, shift, shift);
+
+  return $self, $c, $provider_id || 'undef()', (@_ % 2 ? shift : {@_}), $cb;
+}
+
 sub _get_authorize_url {
-  my ($self, $c, $provider_id, %args) = @_;
-  my $fb_url;
+  my ($self, $c, $provider_id, $args, $cb) = _args(@_);
+  my $provider = $self->providers->{$provider_id} or croak "[get_authorize_url] Unknown OAuth2 provider $provider_id";
+  my $authorize_url;
 
-  croak "Unknown provider $provider_id" unless (my $provider = $self->providers->{$provider_id});
+  $provider->{key} or croak "[get_authorize_url] 'key' for $provider_id is missing";
 
-  $args{scope} ||= $self->providers->{$provider_id}{scope};
-  $args{redirect_uri} ||= $c->url_for->to_abs->to_string;
-  $fb_url = Mojo::URL->new($provider->{authorize_url});
-  $fb_url->host($args{host}) if exists $args{host};
-  $fb_url->query->append(client_id => $provider->{key}, redirect_uri => $args{'redirect_uri'},);
-  $fb_url->query->append(scope => $args{scope}) if exists $args{scope};
-  $fb_url->query->append(state => $args{state}) if exists $args{state};
-  $fb_url->query($args{authorize_query}) if exists $args{authorize_query};
-
-  return $fb_url;
+  $args->{scope} ||= $self->providers->{$provider_id}{scope};
+  $args->{redirect_uri} ||= $c->url_for->to_abs->to_string;
+  $authorize_url = Mojo::URL->new($provider->{authorize_url});
+  $authorize_url->host($args->{host}) if exists $args->{host};
+  $authorize_url->query->append(client_id => $provider->{key}, redirect_uri => $args->{redirect_uri});
+  $authorize_url->query->append(scope => $args->{scope}) if defined $args->{scope};
+  $authorize_url->query->append(state => $args->{state}) if defined $args->{state};
+  $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
+  $authorize_url;
 }
 
 sub _get_auth_token {
-  my ($self, $res) = @_;
-  if ($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-    return $res->json->{access_token};
+  my ($self, $tx, $nb) = @_;
+  my ($err, $token);
+  my $res = $tx->res;
+
+  if ($err = $tx->error) {
+    1;
   }
-  my $qp = Mojo::Parameters->new($res->body);
-  return $qp->param('access_token');
+  elsif ($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+    $token = $res->json->{access_token};
+  }
+  else {
+    $token = Mojo::Parameters->new($res->body)->param('access_token');
+  }
+
+  die $err->{message} || 'Unknown error' if !$token and !$nb;
+  return $token, $tx;
+}
+
+sub _handle_code {
+  my ($self, $c, $provider_id, $args, $cb) = _args(@_);
+  my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
+  my $token_url = Mojo::URL->new($provider->{token_url});
+  my $params    = {
+    client_secret => $provider->{secret},
+    client_id     => $provider->{key},
+    code          => scalar($c->param('code')),
+    grant_type    => 'authorization_code',
+    redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
+  };
+
+  $token_url->host($args->{host}) if exists $args->{host};
+
+  if ($cb) {
+    return $c->delay(
+      sub {
+        my ($delay) = @_;
+        $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
+      },
+      sub {
+        my ($delay, $tx) = @_;
+        $c->$cb($self->_get_auth_token($tx, $cb));
+      },
+    );
+  }
+  else {
+    return $self->_get_auth_token($self->_ua->post($token_url->to_abs, form => $params));
+  }
+}
+
+sub _handle_error {
+  my ($self, $c, $provider_id, $args, $cb) = _args(@_);
+  my $error = $c->param('error');
+
+  die $error unless $cb;
+  my $provider = $self->providers->{$provider_id} or croak "[error] Unknown OAuth2 provider $provider_id";
+  my $tx = $self->_ua->build_tx(GET => $provider->{authorize_url});
+  $tx->res->error({message => $error});
+  $c->$cb(undef, $tx);
+  $c;
 }
 
 1;
