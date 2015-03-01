@@ -22,44 +22,38 @@ DESCRIPTION
     *   <http://en.wikipedia.org/wiki/OAuth#OAuth_2.0>
 
 SYNOPSIS
-  Async example
+  Example web application
       use Mojolicious::Lite;
 
       plugin "OAuth2" => {
         facebook => {
-          key => "APP_ID",
+          key    => "some-public-app-id",
           secret => $ENV{OAUTH2_FACEBOOK_SECRET},
         },
       };
 
-      get "/auth" => sub {
-        my $self = shift;
-        $self->delay(
+      get "/connect" => sub {
+        my $c = shift;
+        $c->delay(
           sub {
             my $delay = shift;
-            $self->get_token(facebook => $delay->begin)
+            my $args  = { redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs };
+            $c->oauth2->get_token(facebook => $args, $delay->begin)
           },
           sub {
-            my($delay, $token, $tx) = @_;
-            return $self->render(text => $tx->res->error) unless $token;
-            $self->session(token => $token);
-            $self->render(text => $token);
+            my($delay, $err, $token) = @_;
+            return $c->render("connect", error => $err) unless $token;
+            return $c->session(token => $token->redirect_to('profile'));
           },
         );
       };
 
-  Synchronous example
-    "get_token" can also be called synchronous, but we encourage the async
-    example above.
-
-      my $token = $self->get_token("facebook");
-
   Custom connect button
     You can add a "connect link" to your template using the
-    "get_authorize_url" helper. Example template:
+    "oauth2.auth_url" helper. Example template:
 
       Click here to log in:
-      <%= link_to "Connect!", get_authorize_url("facebook", scope => "user_about_me email") %>
+      <%= link_to "Connect!", $c->oauth2->auth_url("facebook", scope => "user_about_me email") %>
 
   Configuration
     This plugin takes a hash as config, where the keys are provider names
@@ -78,6 +72,16 @@ SYNOPSIS
     To make it a bit easier, Mojolicious::Plugin::OAuth2 has already values
     for "authorize_url" and "token_url" for the following providers:
 
+    *   dailymotion
+
+        Authentication for Dailymotion video site.
+
+    *   eventbrite
+
+        Authentication for <https://www.eventbrite.com> event site.
+
+        See also <http://developer.eventbrite.com/docs/auth/>.
+
     *   facebook
 
         OAuth2 for Facebook's graph API, <http://graph.facebook.com/>. You
@@ -87,9 +91,11 @@ SYNOPSIS
         See also
         <https://developers.facebook.com/docs/reference/dialogs/oauth/>.
 
-    *   dailymotion
+    *   github
 
-        Authentication for Dailymotion video site.
+        Authentication with Github.
+
+        See also <https://developer.github.com/v3/oauth/>
 
     *   google
 
@@ -101,34 +107,34 @@ SYNOPSIS
         See also <https://developers.google.com/+/quickstart/>.
 
 HELPERS
-  get_authorize_url
-      $url = $c->get_authorize_url($provider => \%args);
+  oauth2.auth_url
+      $url = $c->oauth2->auth_url($provider => \%args);
 
     Returns a Mojo::URL object which contain the authorize URL. This is
     useful if you want to add the authorize URL as a link to your webpage
-    instead of doing a redirect like "get_token" does. %args is optional,
-    but can contain:
+    instead of doing a redirect like "oauth2.get_token" does. %args is
+    optional, but can contain:
 
     *   host
 
         Useful if your provider uses different hosts for accessing different
         accounts. The default is specified in the provider configuration.
 
-            $url->host($host);
+          $url->host($host);
 
     *   authorize_query
 
         Either a hash-ref or an array-ref which can be used to give extra
         query params to the URL.
 
-            $url->query($authorize_url);
+          $url->query($authorize_url);
 
     *   redirect_uri
 
         Useful if you want to go back to a different page than what you came
         from. The default is:
 
-            $c->url_for->to_abs->to_string
+          $c->url_for->to_abs->to_string
 
     *   scope
 
@@ -141,9 +147,13 @@ HELPERS
         carried with the user, as a GET parameter called "state" in the URL
         that the user will return to.
 
-  get_token
-      $token = $c->get_token($provider_name => \%args);
-      $c = $c->get_token($provider_name => \%args, sub { my ($c, $token, $tx) = @_; });
+  oauth2.get_token
+      $c = $c->oauth2->get_token(
+             $provider_name => \%args,
+             sub {
+               my ($c, $err, $token) = @_;
+             }
+           );
 
     This method will do one of two things:
 
@@ -171,6 +181,20 @@ HELPERS
     *   scope
 
         Scope to ask for credentials to. Should be a space separated list.
+
+  oauth2.providers
+    This helper allow you to access the raw providers mapping, which looks
+    something like this:
+
+      {
+        facebook => {
+          authorize_url => "https://graph.facebook.com/oauth/authorize",
+          token_url     => "https://graph.facebook.com/oauth/access_token",
+          key           => ...,
+          secret        => ...,
+        },
+        ...
+      }
 
 AUTHOR
     Marcus Ramberg - "mramberg@cpan.org"
