@@ -51,18 +51,7 @@ sub register {
     get_token => sub {
       my $cb = (@_ % 2 == 1 and ref $_[-1] eq 'CODE') ? pop : undef;
       my ($c, $provider_id, %args) = @_;
-
-      for my $k (qw( callback error_handler refuse_handler on_success on_failure on_refuse )) {
-        next unless $args{$k};
-        deprecated
-          "$k is DEPRECATED in favor of \$c->get_token(\$provider_id, {...}, sub { my (\$c, \$token, \$tx) = @_ })";
-      }
-
-      $args{callback}       ||= $args{on_success};
-      $args{error_handler}  ||= $args{on_failure};
-      $args{refuse_handler} ||= $args{on_refuse};
-
-      croak "Unknown provider $provider_id" unless (my $provider = $self->providers->{$provider_id});
+      my $provider = $self->providers->{$provider_id} or croak "Unknown OAuth2 provider $provider_id";
 
       if ($c->param('code')) {
         my $fb_url = Mojo::URL->new($provider->{token_url});
@@ -76,17 +65,16 @@ sub register {
 
         $fb_url->host($args{host}) if exists $args{host};
 
-        if ($args{async} or $cb) {
+        if ($cb) {
           $self->_ua->post(
             $fb_url->to_abs,
             form => $params => sub {
               my ($client, $tx) = @_;
               if (my $res = $tx->success) {
-                my $token = $self->_get_auth_token($res);
-                $cb ? $self->$cb($token, $tx) : $args{callback}->($token);
+                $c->$cb($self->_get_auth_token($res), $tx);
               }
               else {
-                $cb ? $self->$cb(undef, $tx) : $args{callback} ? $args{callback}->($tx) : 'noop';
+                $c->$cb(undef, $tx);
               }
             }
           );
@@ -95,22 +83,18 @@ sub register {
         else {
           my $tx = $self->_ua->post($fb_url->to_abs, form => $params);
           if (my $res = $tx->success) {
-            my $token = $self->_get_auth_token($res);
-            $args{callback}->($token) if $args{callback};
-            return $token;
+            return $self->_get_auth_token($res);
           }
-          elsif ($args{error_handler}) {
-            $args{error_handler}->($tx);
+          else {
+            die $tx;
           }
         }
       }
+      elsif (my $error = $c->param('error')) {
+        $c->$cb(undef, $c->tx);
+      }
       else {
-        if (($c->param('error') // '') eq 'access_denied' and $args{refuse_handler}) {
-          $args{refuse_handler}->();
-        }
-        else {
-          $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
-        }
+        $c->redirect_to($self->_get_authorize_url($c, $provider_id, %args));
       }
     }
   );
