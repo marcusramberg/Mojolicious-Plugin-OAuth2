@@ -37,6 +37,6 @@ WriteMakefile(
     )
   ),
 
-  PREREQ_PM => {'Mojolicious' => '1.64', 'IO::Socket::SSL' => 0,},
+  PREREQ_PM => {'Mojolicious' => '6.00', 'IO::Socket::SSL' => 0},
   test      => {TESTS         => 't/*.t t/*/*.t t/*/*/*.t t/*/*/*/*.t'}
 );
