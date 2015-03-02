@@ -415,7 +415,7 @@ The route it self can also be customized:
 =item * POST /mocked/oauth/token
 
 This route is will return an "access_token" which will be the C<$token>
-variable in your L</oauth.get_token> callback. The default is "fake_token",
+variable in your L</oauth2.get_token> callback. The default is "fake_token",
 but it can be configured:
 
   $c->app->oauth2->providers->{mocked}{return_token} = "...";
