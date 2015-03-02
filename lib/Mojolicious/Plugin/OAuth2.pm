@@ -305,7 +305,7 @@ L<IO::Socket::SSL> is installed.
 
   plugin "OAuth2" => {
     facebook => {
-      key    => "some-public-app-id",
+      key => "some-public-app-id",
       secret => $ENV{OAUTH2_FACEBOOK_SECRET},
     },
   };
@@ -315,11 +315,11 @@ L<IO::Socket::SSL> is installed.
     $c->delay(
       sub {
         my $delay = shift;
-        my $args  = { redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs };
-        $c->oauth2->get_token(facebook => $args, $delay->begin)
+        my $args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
+        $c->oauth2->get_token(facebook => $args, $delay->begin);
       },
       sub {
-        my($delay, $err, $token) = @_;
+        my ($delay, $err, $token) = @_;
         return $c->render("connect", error => $err) unless $token;
         return $c->session(token => $token->redirect_to('profile'));
       },
@@ -341,10 +341,10 @@ values are configuration for each provider. Here is a complete example:
 
   plugin "OAuth2" => {
     custom_provider => {
-      key => "APP_ID",
-      secret => "SECRET_KEY",
+      key           => "APP_ID",
+      secret        => "SECRET_KEY",
       authorize_url => "https://provider.example.com/auth",
-      token_url => "https://provider.example.com/token",
+      token_url     => "https://provider.example.com/token",
     },
   };
 
