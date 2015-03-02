@@ -234,13 +234,16 @@ sub _mock_interface {
 
   $self->_ua->server->app($app);
 
+  $provider->{return_code}  ||= 'fake_code';
+  $provider->{return_token} ||= 'fake_token';
+
   $app->routes->get(
     $provider->{authorize_url} => sub {
       my $c = shift;
       if ($c->param('client_id') and $c->param('redirect_uri')) {
-        my $return = Mojo::URL->new($c->param('redirect_uri'));
-        $return->query->append(code => 'fake_code');
-        $c->render(text => $c->tag('a', href => $return, sub {'Connect'}));
+        my $url = Mojo::URL->new($c->param('redirect_uri'));
+        $url->query->append(code => $provider->{return_code});
+        $c->render(text => $c->tag('a', href => $url, sub {'Connect'}));
       }
       else {
         $c->render(text => "Invalid request\n", status => 400);
@@ -252,7 +255,7 @@ sub _mock_interface {
     $provider->{token_url} => sub {
       my $c = shift;
       if ($c->param('client_secret') and $c->param('redirect_uri') and $c->param('code')) {
-        my $qp = Mojo::Parameters->new(access_token => 'fake_token', lifetime => 3600);
+        my $qp = Mojo::Parameters->new(access_token => $provider->{return_token}, lifetime => 3600);
         $c->render(text => $qp->to_string);
       }
       else {
@@ -384,6 +387,45 @@ See also L<https://developers.google.com/+/quickstart/>.
 
 =back
 
+=head2 Testing
+
+THIS API IS EXPERIMENTAL AND CAN CHANGE WITHOUT NOTICE.
+
+To enable a "mocked" OAuth2 api, you need to give the special "mocked"
+provider a "key":
+
+  plugin "OAuth2" => { mocked => {key => 42} };
+
+The code above will add two new routes to your application:
+
+=over 4
+
+=item * GET /mocked/oauth/authorize
+
+This route is a web page which contains a link that takes you back to
+"redirect_uri", with a "code". The "code" default to "fake_code", but
+can be configured:
+
+  $c->app->oauth2->providers->{mocked}{return_code} = "...";
+
+The route it self can also be customized:
+
+  plugin "OAuth2" => { mocked => {authorize_url => '...'} };
+
+=item * POST /mocked/oauth/token
+
+This route is will return an "access_token" which will be the C<$token>
+variable in your L</oauth.get_token> callback. The default is "fake_token",
+but it can be configured:
+
+  $c->app->oauth2->providers->{mocked}{return_token} = "...";
+
+The route it self can also be customized:
+
+  plugin "OAuth2" => { mocked => {token_url => '...'} };
+
+=back
+
 =head1 HELPERS
 
 =head2 oauth2.auth_url
@@ -491,6 +533,18 @@ something like this:
     },
     ...
   }
+
+=head1 ATTRIBUTES
+
+=head2 providers
+
+Holds a hash of provider information. See L<oauth2.providers>.
+
+=head1 METHODS
+
+=head2 register
+
+Will register this plugin in your application. See L</SYNOPSIS>.
 
 =head1 AUTHOR
 

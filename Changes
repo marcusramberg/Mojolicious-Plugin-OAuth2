@@ -1,3 +1,6 @@
+1.5
+    - Able to mock interface for easy testing
+
 1.4   2015-03-01 21:03:47
     - Fix handling of error in param, #27
     - Add new helper oauth2->auth_url
