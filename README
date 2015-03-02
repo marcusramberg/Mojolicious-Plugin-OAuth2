@@ -106,6 +106,40 @@ SYNOPSIS
 
         See also <https://developers.google.com/+/quickstart/>.
 
+  Testing
+    THIS API IS EXPERIMENTAL AND CAN CHANGE WITHOUT NOTICE.
+
+    To enable a "mocked" OAuth2 api, you need to give the special "mocked"
+    provider a "key":
+
+      plugin "OAuth2" => { mocked => {key => 42} };
+
+    The code above will add two new routes to your application:
+
+    *   GET /mocked/oauth/authorize
+
+        This route is a web page which contains a link that takes you back
+        to "redirect_uri", with a "code". The "code" default to "fake_code",
+        but can be configured:
+
+          $c->app->oauth2->providers->{mocked}{return_code} = "...";
+
+        The route it self can also be customized:
+
+          plugin "OAuth2" => { mocked => {authorize_url => '...'} };
+
+    *   POST /mocked/oauth/token
+
+        This route is will return an "access_token" which will be the $token
+        variable in your "oauth.get_token" callback. The default is
+        "fake_token", but it can be configured:
+
+          $c->app->oauth2->providers->{mocked}{return_token} = "...";
+
+        The route it self can also be customized:
+
+          plugin "OAuth2" => { mocked => {token_url => '...'} };
+
 HELPERS
   oauth2.auth_url
       $url = $c->oauth2->auth_url($provider => \%args);
@@ -195,6 +229,14 @@ HELPERS
         },
         ...
       }
+
+ATTRIBUTES
+  providers
+    Holds a hash of provider information. See oauth2.providers.
+
+METHODS
+  register
+    Will register this plugin in your application. See "SYNOPSIS".
 
 AUTHOR
     Marcus Ramberg - "mramberg@cpan.org"

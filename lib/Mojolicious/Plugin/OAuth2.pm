@@ -6,7 +6,7 @@ use Mojo::Util 'deprecated';
 use Carp 'croak';
 use strict;
 
-our $VERSION = '1.4';
+our $VERSION = '1.5';
 
 has providers => sub {
   return {
