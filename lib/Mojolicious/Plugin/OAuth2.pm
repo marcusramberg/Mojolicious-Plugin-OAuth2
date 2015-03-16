@@ -53,6 +53,10 @@ sub register {
 
   $self->providers($providers);
 
+  unless ($self->{fix_get_token} = $config->{fix_get_token}) {
+    deprecated "\$c->oauth2->get_token(...) has changed api!";
+  }
+
   if ($providers->{mocked}{key}) {
     $self->_mock_interface($app);
   }
@@ -203,20 +207,21 @@ sub _process_response_code {
     },
     sub {
       my ($delay, $tx) = @_;
-      my $res = $tx->res;
-      my $token;
+      my ($data, $err);
 
-      if (my $err = $tx->error) {
-        return $c->$cb($err->{message} || $err->{code}, undef);
+      if ($err = $tx->error) {
+        $err = $err->{message} || $err->{code};
       }
-      elsif ($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-        $token = $res->json->{access_token};
+      elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+        $data = $tx->res->json;
       }
       else {
-        $token = Mojo::Parameters->new($res->body)->param('access_token');
+        $data = Mojo::Parameters->new($tx->res->body)->to_hash;
       }
 
-      $c->$cb($token ? '' : 'Unknown error', $token);
+      $err = $data ? '' : $err || 'Unknown error';
+
+      $c->$cb($err, $self->{fix_get_token} ? $data : $data->{access_token});
     },
   );
 }
@@ -319,9 +324,9 @@ L<IO::Socket::SSL> is installed.
         $c->oauth2->get_token(facebook => $args, $delay->begin);
       },
       sub {
-        my ($delay, $err, $token) = @_;
-        return $c->render("connect", error => $err) unless $token;
-        return $c->session(token => $token)->redirect_to('profile');
+        my ($delay, $err, $data) = @_;
+        return $c->render("connect", error => $err) unless $data->{access_token};
+        return $c->session(token => $c->redirect_to('profile'));
       },
     );
   };
@@ -414,9 +419,9 @@ The route it self can also be customized:
 
 =item * POST /mocked/oauth/token
 
-This route is will return an "access_token" which will be the C<$token>
-variable in your L</oauth2.get_token> callback. The default is "fake_token",
-but it can be configured:
+This route is will return a "access_token" which is available in your
+L</oauth2.get_token> callback. The default is "fake_token", but it can
+be configured:
 
   $c->app->oauth2->providers->{mocked}{return_token} = "...";
 
@@ -477,7 +482,7 @@ as a GET parameter called C<state> in the URL that the user will return to.
   $c = $c->oauth2->get_token(
          $provider_name => \%args,
          sub {
-           my ($c, $err, $token) = @_;
+           my ($c, $err, $data) = @_;
          }
        );
 
@@ -495,9 +500,8 @@ connect your site with his/her profile on the OAuth2 provider's page or not.
 =item 2.
 
 The OAuth2 provider will redirect the user back to your site after clicking the
-"Connect" or "Reject" button. C<$token> will then contain a string on "Connect"
-and a false value on "Reject". You can investigate
-L<$tx|Mojo::Transaction::HTTP> if C<$token> holds a false value.
+"Connect" or "Reject" button. C<$data> will then contain a key "access_token"
+on "Connect" and a false value on "Reject".
 
 =back
 
