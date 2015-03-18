@@ -27,7 +27,7 @@ SYNOPSIS
 
       plugin "OAuth2" => {
         facebook => {
-          key    => "some-public-app-id",
+          key => "some-public-app-id",
           secret => $ENV{OAUTH2_FACEBOOK_SECRET},
         },
       };
@@ -37,13 +37,13 @@ SYNOPSIS
         $c->delay(
           sub {
             my $delay = shift;
-            my $args  = { redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs };
-            $c->oauth2->get_token(facebook => $args, $delay->begin)
+            my $args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
+            $c->oauth2->get_token(facebook => $args, $delay->begin);
           },
           sub {
-            my($delay, $err, $token) = @_;
-            return $c->render("connect", error => $err) unless $token;
-            return $c->session(token => $token)->redirect_to('profile');
+            my ($delay, $err, $data) = @_;
+            return $c->render("connect", error => $err) unless $data->{access_token};
+            return $c->session(token => $c->redirect_to('profile'));
           },
         );
       };
@@ -62,10 +62,10 @@ SYNOPSIS
 
       plugin "OAuth2" => {
         custom_provider => {
-          key => "APP_ID",
-          secret => "SECRET_KEY",
+          key           => "APP_ID",
+          secret        => "SECRET_KEY",
           authorize_url => "https://provider.example.com/auth",
-          token_url => "https://provider.example.com/token",
+          token_url     => "https://provider.example.com/token",
         },
       };
 
@@ -130,9 +130,9 @@ SYNOPSIS
 
     *   POST /mocked/oauth/token
 
-        This route is will return an "access_token" which will be the $token
-        variable in your "oauth.get_token" callback. The default is
-        "fake_token", but it can be configured:
+        This route is will return a "access_token" which is available in
+        your "oauth2.get_token" callback. The default is "fake_token", but
+        it can be configured:
 
           $c->app->oauth2->providers->{mocked}{return_token} = "...";
 
@@ -185,7 +185,7 @@ HELPERS
       $c = $c->oauth2->get_token(
              $provider_name => \%args,
              sub {
-               my ($c, $err, $token) = @_;
+               my ($c, $err, $data) = @_;
              }
            );
 
@@ -198,9 +198,8 @@ HELPERS
         provider's page or not.
 
     2.  The OAuth2 provider will redirect the user back to your site after
-        clicking the "Connect" or "Reject" button. $token will then contain
-        a string on "Connect" and a false value on "Reject". You can
-        investigate $tx if $token holds a false value.
+        clicking the "Connect" or "Reject" button. $data will then contain a
+        key "access_token" on "Connect" and a false value on "Reject".
 
     Will redirect to the provider to allow for authorization, then fetch the
     token. The token gets provided as a parameter to the callback function.

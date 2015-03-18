@@ -1,3 +1,7 @@
+1.51  2015-03-18 17:38:19
+    - Fix get_token() need to return the whole data structure to the callback
+      and not just $token.
+
 1.5   2015-03-02 08:31:47
     - Able to mock interface for easy testing
 

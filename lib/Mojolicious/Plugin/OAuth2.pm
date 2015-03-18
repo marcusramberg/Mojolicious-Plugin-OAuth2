@@ -6,7 +6,7 @@ use Mojo::Util 'deprecated';
 use Carp 'croak';
 use strict;
 
-our $VERSION = '1.5';
+our $VERSION = '1.51';
 
 has providers => sub {
   return {
@@ -54,7 +54,8 @@ sub register {
   $self->providers($providers);
 
   unless ($self->{fix_get_token} = $config->{fix_get_token}) {
-    deprecated "\$c->oauth2->get_token(...) has changed api!";
+    deprecated
+      "\$c->oauth2->get_token(...) has changed api! Please set 'fix_get_token' in the config arguments to move forward. Sorry for the inconvenience.";
   }
 
   if ($providers->{mocked}{key}) {
