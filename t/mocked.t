@@ -5,7 +5,7 @@ use Test::More;
 
 {
   use Mojolicious::Lite;
-  plugin OAuth2 => {mocked => {key => '42'}};
+  plugin OAuth2 => {fix_get_token => 1, mocked => {key => '42'}};
   get '/test123' => sub {
     my $c = shift;
 
@@ -15,9 +15,9 @@ use Test::More;
         $c->oauth2->get_token(mocked => $delay->begin);
       },
       sub {
-        my ($delay, $err, $token) = @_;
+        my ($delay, $err, $data) = @_;
         return $c->render(text => $err, status => 500) if $err;
-        return $c->render(text => "Token $token");
+        return $c->render(text => "Token $data->{access_token}");
       },
     );
   };
