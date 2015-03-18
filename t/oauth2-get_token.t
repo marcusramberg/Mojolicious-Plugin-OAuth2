@@ -15,9 +15,9 @@ $app->routes->get(
         $c->oauth2->get_token(test => $delay->begin);
       },
       sub {
-        my ($delay, $err, $token) = @_;
+        my ($delay, $err, $data) = @_;
         return $c->render(text => $err, status => 500) if $err;
-        return $c->render(text => "Token $token");
+        return $c->render(text => "Token $data->{access_token}");
       },
     );
   }
