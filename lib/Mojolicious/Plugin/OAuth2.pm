@@ -321,7 +321,7 @@ L<IO::Socket::SSL> is installed.
       sub {
         my ($delay, $err, $token) = @_;
         return $c->render("connect", error => $err) unless $token;
-        return $c->session(token => $token->redirect_to('profile'));
+        return $c->session(token => $token)->redirect_to('profile');
       },
     );
   };
