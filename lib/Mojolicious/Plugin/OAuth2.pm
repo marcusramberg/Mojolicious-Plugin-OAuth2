@@ -68,9 +68,12 @@ sub register {
     'oauth2.get_token' => sub {
       my $c = shift;
 
+      my $blocking_mode = ref $_[-1] ne 'CODE';
+
       return $self->_process_response_error($c, @_) if $c->param('error');
       return $self->_process_response_code($c, @_) if $c->param('code');
-      return $c->redirect_to($self->_get_authorize_url($c, @_));
+      my $redir_return = $c->redirect_to($self->_get_authorize_url($c, @_));
+      return $blocking_mode ? undef : $redir_return;
     }
   );
 
@@ -187,7 +190,8 @@ sub _handle_error {
 }
 
 sub _process_response_code {
-  my $cb = pop;
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
+  my $blocking_mode = ! $cb;
   my ($self, $c, $provider_id, $args) = @_;
   my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
   my $token_url = Mojo::URL->new($provider->{token_url});
@@ -200,6 +204,27 @@ sub _process_response_code {
   };
 
   $token_url->host($args->{host}) if exists $args->{host};
+
+  if ($blocking_mode) {
+    my $tx = $self->_ua->post($token_url->to_abs, form => $params);
+    my ($data, $err);
+
+    if ($err = $tx->error) {
+      $err = $err->{message} || $err->{code};
+    }
+    elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+      $data = $tx->res->json;
+    }
+    else {
+      $data = Mojo::Parameters->new($tx->res->body)->to_hash;
+    }
+
+    $err = $data ? '' : $err || 'Unknown error';
+
+    if ($err) { die $err; }
+
+    return $self->{fix_get_token} ? $data : $data->{access_token};
+  }
 
   return $c->delay(
     sub {
@@ -330,6 +355,30 @@ L<IO::Socket::SSL> is installed.
         return $c->session(token => $c->redirect_to('profile'));
       },
     );
+  };
+
+=head2 Example web application (blocking mode)
+
+  use Mojolicious::Lite;
+
+  plugin "OAuth2" => {
+    facebook => {
+      key => "some-public-app-id",
+      secret => $ENV{OAUTH2_FACEBOOK_SECRET},
+    },
+  };
+
+  get "/connect" => sub {
+    my $c = shift;
+    my $args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
+    if (my $err = $c->param('error')) {
+      # do stuff with error from OAuth2 provider
+    } elsif (my $data = $c->oauth2->get_token(facebook => $args)) {
+      # do stuff with $data->{access_token};
+    } else {
+      # already redirected by OAuth2 plugin
+      return;
+    }
   };
 
 =head2 Custom connect button
@@ -487,7 +536,7 @@ as a GET parameter called C<state> in the URL that the user will return to.
          }
        );
 
-This method will do one of two things:
+This method will do one of two things when called in non-blocking mode:
 
 =over 4
 
@@ -503,6 +552,27 @@ connect your site with his/her profile on the OAuth2 provider's page or not.
 The OAuth2 provider will redirect the user back to your site after clicking the
 "Connect" or "Reject" button. C<$data> will then contain a key "access_token"
 on "Connect" and a false value on "Reject".
+
+=back
+
+When called in blocking mode (without the callback), will do one of these two things:
+
+=over 4
+
+=item 1.
+
+If called from an action on your site, it will redirect you to the
+C<$provider_name>'s C<authorize_url>, and return undef. This site
+will probably have some sort of "Connect" and "Reject" button, allowing
+the visitor to either connect your site with his/her profile on the
+OAuth2 provider's page or not.
+
+=item 2.
+
+The OAuth2 provider will redirect the user back to your site after clicking the
+"Connect" or "Reject" button. C<$data> will then contain a key "access_token"
+on "Connect", just like in non-blocking mode, but will die with an error
+if for any reason the plugin could not retrieve the access_token.
 
 =back
 
