@@ -13,12 +13,15 @@ use Test::More;
     if (my $e = $@) {
       if ($e =~ /^access_denied/) {
         return $c->render(text => $c->param('error'), status => 500);
-      } else {
+      }
+      else {
         die $e;
       }
-    } elsif ($data) {
+    }
+    elsif ($data) {
       return $c->render(text => "Token $data->{access_token}");
-    } else {
+    }
+    else {
       return;
     }
   };

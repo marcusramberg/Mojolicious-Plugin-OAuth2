@@ -227,7 +227,8 @@ sub _process_response_code {
         $c->$cb($err, $self->{fix_get_token} ? $data : $data->{access_token});
       },
     );
-  } else {
+  }
+  else {
     my $tx = $self->_ua->post($token_url->to_abs, form => $params);
     my ($data, $err);
 
@@ -241,7 +242,7 @@ sub _process_response_code {
       $data = Mojo::Parameters->new($tx->res->body)->to_hash;
     }
 
-    die $err || 'Unknown error'   if $err or !$data;
+    die $err || 'Unknown error' if $err or !$data;
 
     return $data;
   }
@@ -254,7 +255,8 @@ sub _process_response_error {
   my $err = $c->param('error_description') || $c->param('error');
   if ($cb) {
     return $c->$cb($err, undef);
-  } else {
+  }
+  else {
     die $err;
   }
 }
