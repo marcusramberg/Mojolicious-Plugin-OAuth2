@@ -11,8 +11,8 @@ use Test::More;
 
     my $data = eval { $c->oauth2->get_token('mocked') };
     if (my $e = $@) {
-      if (my $err = $c->param('error')) {
-        return $c->render(text => $err, status => 500);
+      if ($e =~ /^access_denied/) {
+        return $c->render(text => $c->param('error'), status => 500);
       } else {
         die $e;
       }
