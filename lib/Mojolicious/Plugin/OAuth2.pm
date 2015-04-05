@@ -68,12 +68,10 @@ sub register {
     'oauth2.get_token' => sub {
       my $c = shift;
 
-      my $blocking_mode = ref $_[-1] ne 'CODE';
-
       return $self->_process_response_error($c, @_) if $c->param('error');
       return $self->_process_response_code($c, @_) if $c->param('code');
-      my $redir_return = $c->redirect_to($self->_get_authorize_url($c, @_));
-      return $blocking_mode ? undef : $redir_return;
+      $c->redirect_to($self->_get_authorize_url($c, @_));
+      return ref $_[-1] eq 'CODE' ? $c : undef;
     }
   );
 
@@ -191,7 +189,6 @@ sub _handle_error {
 
 sub _process_response_code {
   my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
-  my $blocking_mode = ! $cb;
   my ($self, $c, $provider_id, $args) = @_;
   my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
   my $token_url = Mojo::URL->new($provider->{token_url});
@@ -205,7 +202,32 @@ sub _process_response_code {
 
   $token_url->host($args->{host}) if exists $args->{host};
 
-  if ($blocking_mode) {
+  if ($cb) {
+    return $c->delay(
+      sub {
+        my ($delay) = @_;
+        $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
+      },
+      sub {
+        my ($delay, $tx) = @_;
+        my ($data, $err);
+
+        if ($err = $tx->error) {
+          $err = $err->{message} || $err->{code};
+        }
+        elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+          $data = $tx->res->json;
+        }
+        else {
+          $data = Mojo::Parameters->new($tx->res->body)->to_hash;
+        }
+
+        $err = $data ? '' : $err || 'Unknown error';
+
+        $c->$cb($err, $self->{fix_get_token} ? $data : $data->{access_token});
+      },
+    );
+  } else {
     my $tx = $self->_ua->post($token_url->to_abs, form => $params);
     my ($data, $err);
 
@@ -219,44 +241,22 @@ sub _process_response_code {
       $data = Mojo::Parameters->new($tx->res->body)->to_hash;
     }
 
-    $err = $data ? '' : $err || 'Unknown error';
+    die $err || 'Unknown error'   if $err or !$data;
 
-    if ($err) { die $err; }
-
-    return $self->{fix_get_token} ? $data : $data->{access_token};
+    return $data;
   }
-
-  return $c->delay(
-    sub {
-      my ($delay) = @_;
-      $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
-    },
-    sub {
-      my ($delay, $tx) = @_;
-      my ($data, $err);
-
-      if ($err = $tx->error) {
-        $err = $err->{message} || $err->{code};
-      }
-      elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-        $data = $tx->res->json;
-      }
-      else {
-        $data = Mojo::Parameters->new($tx->res->body)->to_hash;
-      }
-
-      $err = $data ? '' : $err || 'Unknown error';
-
-      $c->$cb($err, $self->{fix_get_token} ? $data : $data->{access_token});
-    },
-  );
 }
 
 sub _process_response_error {
-  my $cb = pop;
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
   my ($self, $c, $provider_id, $args) = @_;
 
-  $c->$cb($c->param('error_description') || $c->param('error'), undef);
+  my $err = $c->param('error_description') || $c->param('error');
+  if ($cb) {
+    return $c->$cb($err, undef);
+  } else {
+    die $err;
+  }
 }
 
 sub _mock_interface {
@@ -357,7 +357,7 @@ L<IO::Socket::SSL> is installed.
     );
   };
 
-=head2 Example web application (blocking mode)
+=head2 Example blocking web application
 
   use Mojolicious::Lite;
 
@@ -529,14 +529,20 @@ as a GET parameter called C<state> in the URL that the user will return to.
 
 =head2 oauth2.get_token
 
-  $c = $c->oauth2->get_token(
-         $provider_name => \%args,
-         sub {
-           my ($c, $err, $data) = @_;
-         }
-       );
+  $data = $c->oauth2->get_token($provider_name => \%args);
+  $c    = $c->oauth2->get_token($provider_name => \%args, sub {
+            my ($c, $err, $data) = @_;
+          });
 
-This method will do one of two things when called in non-blocking mode:
+L</oauth2.get_token> is used to either fetch access token from OAuth2 provider,
+handle errors or redirect to OAuth2 provider. This method can be called in either
+blocking or non-blocking mode. C<$err> holds a error description if something
+went wrong. Blocking mode will C<die($err)> instead of returning it to caller.
+C<$data> is a hash-ref containing the access token from the OAauth2 provider.
+C<$data> in blocking mode can also be C<undef> if a redirect has been issued
+by this module.
+
+In more detail, this method will do one of two things:
 
 =over 4
 
@@ -551,28 +557,7 @@ connect your site with his/her profile on the OAuth2 provider's page or not.
 
 The OAuth2 provider will redirect the user back to your site after clicking the
 "Connect" or "Reject" button. C<$data> will then contain a key "access_token"
-on "Connect" and a false value on "Reject".
-
-=back
-
-When called in blocking mode (without the callback), will do one of these two things:
-
-=over 4
-
-=item 1.
-
-If called from an action on your site, it will redirect you to the
-C<$provider_name>'s C<authorize_url>, and return undef. This site
-will probably have some sort of "Connect" and "Reject" button, allowing
-the visitor to either connect your site with his/her profile on the
-OAuth2 provider's page or not.
-
-=item 2.
-
-The OAuth2 provider will redirect the user back to your site after clicking the
-"Connect" or "Reject" button. C<$data> will then contain a key "access_token"
-on "Connect", just like in non-blocking mode, but will die with an error
-if for any reason the plugin could not retrieve the access_token.
+on "Connect" and a false value on "Reject" mode, or will die in blocking mode.
 
 =back
 

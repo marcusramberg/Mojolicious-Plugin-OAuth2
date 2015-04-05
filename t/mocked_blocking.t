@@ -9,9 +9,14 @@ use Test::More;
   get '/test123' => sub {
     my $c = shift;
 
-    if (my $err = $c->param('error')) {
-      return $c->render(text => $err, status => 500);
-    } elsif (my $data = $c->oauth2->get_token('mocked')) {
+    my $data = eval { $c->oauth2->get_token('mocked') };
+    if (my $e = $@) {
+      if (my $err = $c->param('error')) {
+        return $c->render(text => $err, status => 500);
+      } else {
+        die $e;
+      }
+    } elsif ($data) {
       return $c->render(text => "Token $data->{access_token}");
     } else {
       return;
