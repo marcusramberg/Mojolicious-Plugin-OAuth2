@@ -2,7 +2,7 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
   NAME          => 'Mojolicious::Plugin::OAuth2',
-  AUTHOR        => 'Marcus Ramberg <marcus@nordaaker.com>',
+  AUTHOR        => 'Jan Henning Thorsen <jhthorsen@cpan.org>',
   LICENSE       => 'artistic_2',
   ABSTRACT_FROM => 'lib/Mojolicious/Plugin/OAuth2.pm',
   VERSION_FROM  => 'lib/Mojolicious/Plugin/OAuth2.pm',

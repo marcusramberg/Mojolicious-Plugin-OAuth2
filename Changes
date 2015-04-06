@@ -1,3 +1,6 @@
+1.52     Mon Apr  6 22:45:17 2015
+    - Add oauth2->get_token() works in blocking mode (Alexander Karelas)
+
 1.51  2015-03-18 17:38:19
     - Fix get_token() need to return the whole data structure to the callback
       and not just $token.

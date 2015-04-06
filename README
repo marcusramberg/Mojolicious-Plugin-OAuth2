@@ -48,6 +48,29 @@ SYNOPSIS
         );
       };
 
+  Example blocking web application
+      use Mojolicious::Lite;
+
+      plugin "OAuth2" => {
+        facebook => {
+          key => "some-public-app-id",
+          secret => $ENV{OAUTH2_FACEBOOK_SECRET},
+        },
+      };
+
+      get "/connect" => sub {
+        my $c = shift;
+        my $args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
+        if (my $err = $c->param('error')) {
+          # do stuff with error from OAuth2 provider
+        } elsif (my $data = $c->oauth2->get_token(facebook => $args)) {
+          # do stuff with $data->{access_token};
+        } else {
+          # already redirected by OAuth2 plugin
+          return;
+        }
+      };
+
   Custom connect button
     You can add a "connect link" to your template using the
     "oauth2.auth_url" helper. Example template:
@@ -182,14 +205,20 @@ HELPERS
         that the user will return to.
 
   oauth2.get_token
-      $c = $c->oauth2->get_token(
-             $provider_name => \%args,
-             sub {
-               my ($c, $err, $data) = @_;
-             }
-           );
+      $data = $c->oauth2->get_token($provider_name => \%args);
+      $c    = $c->oauth2->get_token($provider_name => \%args, sub {
+                my ($c, $err, $data) = @_;
+              });
 
-    This method will do one of two things:
+    "oauth2.get_token" is used to either fetch access token from OAuth2
+    provider, handle errors or redirect to OAuth2 provider. This method can
+    be called in either blocking or non-blocking mode. $err holds a error
+    description if something went wrong. Blocking mode will "die($err)"
+    instead of returning it to caller. $data is a hash-ref containing the
+    access token from the OAauth2 provider. $data in blocking mode can also
+    be "undef" if a redirect has been issued by this module.
+
+    In more detail, this method will do one of two things:
 
     1.  If called from an action on your site, it will redirect you to the
         $provider_name's "authorize_url". This site will probably have some
@@ -199,7 +228,8 @@ HELPERS
 
     2.  The OAuth2 provider will redirect the user back to your site after
         clicking the "Connect" or "Reject" button. $data will then contain a
-        key "access_token" on "Connect" and a false value on "Reject".
+        key "access_token" on "Connect" and a false value on "Reject" mode,
+        or will die in blocking mode.
 
     Will redirect to the provider to allow for authorization, then fetch the
     token. The token gets provided as a parameter to the callback function.
