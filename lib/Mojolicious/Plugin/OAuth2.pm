@@ -70,7 +70,8 @@ sub register {
 
       return $self->_process_response_error($c, @_) if $c->param('error');
       return $self->_process_response_code($c, @_) if $c->param('code');
-      return $c->redirect_to($self->_get_authorize_url($c, @_));
+      $c->redirect_to($self->_get_authorize_url($c, @_));
+      return ref $_[-1] eq 'CODE' ? $c : undef;
     }
   );
 
@@ -187,7 +188,7 @@ sub _handle_error {
 }
 
 sub _process_response_code {
-  my $cb = pop;
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
   my ($self, $c, $provider_id, $args) = @_;
   my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
   my $token_url = Mojo::URL->new($provider->{token_url});
@@ -201,37 +202,63 @@ sub _process_response_code {
 
   $token_url->host($args->{host}) if exists $args->{host};
 
-  return $c->delay(
-    sub {
-      my ($delay) = @_;
-      $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
-    },
-    sub {
-      my ($delay, $tx) = @_;
-      my ($data, $err);
+  if ($cb) {
+    return $c->delay(
+      sub {
+        my ($delay) = @_;
+        $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
+      },
+      sub {
+        my ($delay, $tx) = @_;
+        my ($data, $err);
 
-      if ($err = $tx->error) {
-        $err = $err->{message} || $err->{code};
-      }
-      elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-        $data = $tx->res->json;
-      }
-      else {
-        $data = Mojo::Parameters->new($tx->res->body)->to_hash;
-      }
+        if ($err = $tx->error) {
+          $err = $err->{message} || $err->{code};
+        }
+        elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+          $data = $tx->res->json;
+        }
+        else {
+          $data = Mojo::Parameters->new($tx->res->body)->to_hash;
+        }
 
-      $err = $data ? '' : $err || 'Unknown error';
+        $err = $data ? '' : $err || 'Unknown error';
 
-      $c->$cb($err, $self->{fix_get_token} ? $data : $data->{access_token});
-    },
-  );
+        $c->$cb($err, $self->{fix_get_token} ? $data : $data->{access_token});
+      },
+    );
+  }
+  else {
+    my $tx = $self->_ua->post($token_url->to_abs, form => $params);
+    my ($data, $err);
+
+    if ($err = $tx->error) {
+      $err = $err->{message} || $err->{code};
+    }
+    elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+      $data = $tx->res->json;
+    }
+    else {
+      $data = Mojo::Parameters->new($tx->res->body)->to_hash;
+    }
+
+    die $err || 'Unknown error' if $err or !$data;
+
+    return $data;
+  }
 }
 
 sub _process_response_error {
-  my $cb = pop;
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
   my ($self, $c, $provider_id, $args) = @_;
 
-  $c->$cb($c->param('error_description') || $c->param('error'), undef);
+  my $err = $c->param('error_description') || $c->param('error');
+  if ($cb) {
+    return $c->$cb($err, undef);
+  }
+  else {
+    die $err;
+  }
 }
 
 sub _mock_interface {
@@ -330,6 +357,30 @@ L<IO::Socket::SSL> is installed.
         return $c->session(token => $c->redirect_to('profile'));
       },
     );
+  };
+
+=head2 Example blocking web application
+
+  use Mojolicious::Lite;
+
+  plugin "OAuth2" => {
+    facebook => {
+      key => "some-public-app-id",
+      secret => $ENV{OAUTH2_FACEBOOK_SECRET},
+    },
+  };
+
+  get "/connect" => sub {
+    my $c = shift;
+    my $args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
+    if (my $err = $c->param('error')) {
+      # do stuff with error from OAuth2 provider
+    } elsif (my $data = $c->oauth2->get_token(facebook => $args)) {
+      # do stuff with $data->{access_token};
+    } else {
+      # already redirected by OAuth2 plugin
+      return;
+    }
   };
 
 =head2 Custom connect button
@@ -480,14 +531,20 @@ as a GET parameter called C<state> in the URL that the user will return to.
 
 =head2 oauth2.get_token
 
-  $c = $c->oauth2->get_token(
-         $provider_name => \%args,
-         sub {
-           my ($c, $err, $data) = @_;
-         }
-       );
+  $data = $c->oauth2->get_token($provider_name => \%args);
+  $c    = $c->oauth2->get_token($provider_name => \%args, sub {
+            my ($c, $err, $data) = @_;
+          });
 
-This method will do one of two things:
+L</oauth2.get_token> is used to either fetch access token from OAuth2 provider,
+handle errors or redirect to OAuth2 provider. This method can be called in either
+blocking or non-blocking mode. C<$err> holds a error description if something
+went wrong. Blocking mode will C<die($err)> instead of returning it to caller.
+C<$data> is a hash-ref containing the access token from the OAauth2 provider.
+C<$data> in blocking mode can also be C<undef> if a redirect has been issued
+by this module.
+
+In more detail, this method will do one of two things:
 
 =over 4
 
@@ -502,7 +559,7 @@ connect your site with his/her profile on the OAuth2 provider's page or not.
 
 The OAuth2 provider will redirect the user back to your site after clicking the
 "Connect" or "Reject" button. C<$data> will then contain a key "access_token"
-on "Connect" and a false value on "Reject".
+on "Connect" and a false value on "Reject" mode, or will die in blocking mode.
 
 =back
 
