@@ -3,6 +3,8 @@
     - Removed fix_get_token hack
     - Documented deprecation for get_authorize_url() and get_token()
     - Fix documentation regarding return value to oauth2->get_token() #45
+    - Fix liftetime isn't a valid paramater in mocked response #47
+    - Add more data to mocked response #47
 
 1.52  2015-04-06 22:45:17
     - Add oauth2->get_token() works in blocking mode (Alexander Karelas)
