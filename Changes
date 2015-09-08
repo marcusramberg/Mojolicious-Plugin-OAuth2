@@ -1,5 +1,5 @@
 
-1.53  Not Released
+1.53  2015-09-08 09:27:17
     - Removed fix_get_token hack
     - Documented deprecation for get_authorize_url() and get_token()
     - Fix documentation regarding return value to oauth2->get_token() #45
