@@ -535,6 +535,7 @@ as a GET parameter called C<state> in the URL that the user will return to.
   $data = $c->oauth2->get_token($provider_name => \%args);
   $c    = $c->oauth2->get_token($provider_name => \%args, sub {
             my ($c, $err, $data) = @_;
+            # do stuff with $data->{access_token} if it exists.
           });
 
 L</oauth2.get_token> is used to either fetch access token from OAuth2 provider,
@@ -560,14 +561,15 @@ connect your site with his/her profile on the OAuth2 provider's page or not.
 
 The OAuth2 provider will redirect the user back to your site after clicking the
 "Connect" or "Reject" button. C<$data> will then contain a key "access_token"
-on "Connect" and a false value on "Reject" mode, or will die in blocking mode.
+on "Connect" and a false value (or die in blocking mode) on "Reject".
 
 =back
 
-Will redirect to the provider to allow for authorization, then fetch the
-token. The token gets provided as a parameter to the callback function.
-Usually you want to store the token in a session or similar to use for
-API requests. Supported arguments:
+The method takes these arguments: C<$provider_name> need to match on of
+the provider names under L</Configuration> or a custom provider defined
+when L<registering|/SYNOPSIS> the plugin.
+
+C<%args> can have:
 
 =over 4
 
