@@ -9,8 +9,7 @@ sub make_app {
 
   $app->plugin(
     OAuth2 => {
-      fix_get_token => 1,
-      test          => {
+      test => {
         authorize_url => '/oauth/authorize',
         token_url     => '/oauth/token',
         key           => 'fake_key',

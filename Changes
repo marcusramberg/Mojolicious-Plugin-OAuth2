@@ -1,4 +1,8 @@
-1.52     Mon Apr  6 22:45:17 2015
+
+1.53  Not Released
+    - Removed fix_get_token hack
+
+1.52  2015-04-06 22:45:17
     - Add oauth2->get_token() works in blocking mode (Alexander Karelas)
 
 1.51  2015-03-18 17:38:19

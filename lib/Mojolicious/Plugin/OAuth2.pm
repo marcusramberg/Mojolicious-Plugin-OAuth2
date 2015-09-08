@@ -53,11 +53,6 @@ sub register {
 
   $self->providers($providers);
 
-  unless ($self->{fix_get_token} = $config->{fix_get_token}) {
-    deprecated
-      "\$c->oauth2->get_token(...) has changed api! Please set 'fix_get_token' in the config arguments to move forward. Sorry for the inconvenience.";
-  }
-
   if ($providers->{mocked}{key}) {
     $self->_mock_interface($app);
   }
@@ -222,9 +217,7 @@ sub _process_response_code {
           $data = Mojo::Parameters->new($tx->res->body)->to_hash;
         }
 
-        $err = $data ? '' : $err || 'Unknown error';
-
-        $c->$cb($err, $self->{fix_get_token} ? $data : $data->{access_token});
+        $c->$cb($data ? '' : $err || 'Unknown error', $data);
       },
     );
   }
@@ -315,6 +308,11 @@ dependency required to support it. Run the command below to check if
 L<IO::Socket::SSL> is installed.
 
    $ mojo version
+
+=head2 Breaking changes
+
+Between 1.51 (2015-03-18) and 1.53 (2015-09-08) we decided to remove the back
+compat hack for L</get_token>, making it act I<only> as documented.
 
 =head2 References
 

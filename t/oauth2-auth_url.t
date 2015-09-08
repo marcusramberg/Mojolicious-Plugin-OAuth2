@@ -5,7 +5,7 @@ use Test::More;
 my $authorize_args = {};
 
 use Mojolicious::Lite;
-plugin 'OAuth2' => {fix_get_token => 1, facebook => {key => 'KEY'}};
+plugin 'OAuth2' => {facebook => {key => 'KEY'}};
 get '/test123', sub { $_[0]->render(text => $_[0]->oauth2->auth_url('facebook', $authorize_args)); };
 
 my $t = Test::Mojo->new;

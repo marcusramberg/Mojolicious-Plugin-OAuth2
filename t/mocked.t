@@ -5,7 +5,7 @@ use Test::More;
 
 {
   use Mojolicious::Lite;
-  plugin OAuth2 => {fix_get_token => 1, mocked => {key => '42'}};
+  plugin OAuth2 => {mocked => {key => '42'}};
   get '/test123' => sub {
     my $c = shift;
 
