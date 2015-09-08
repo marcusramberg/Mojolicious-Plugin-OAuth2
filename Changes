@@ -1,6 +1,7 @@
 
 1.53  Not Released
     - Removed fix_get_token hack
+    - Documented deprecation for get_authorize_url() and get_token()
 
 1.52  2015-04-06 22:45:17
     - Add oauth2->get_token() works in blocking mode (Alexander Karelas)
@@ -19,7 +20,7 @@
     - Add new helper oauth2->providers
     - Add eventbrite and github as providers
     - Deprecate on_xxx handlers
-    - Started deprecation process for get_authorize_url() and get_token();
+    - Started deprecation process for get_authorize_url() and get_token()
 
 1.3   2014-10-07 08:00:00
     - Fix param injection security issue

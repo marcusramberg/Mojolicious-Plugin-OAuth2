@@ -314,6 +314,9 @@ L<IO::Socket::SSL> is installed.
 Between 1.51 (2015-03-18) and 1.53 (2015-09-08) we decided to remove the back
 compat hack for L</get_token>, making it act I<only> as documented.
 
+The two helpers C<get_authorize_url()> and C<get_token()> will be removed
+soon. They have been deprecated since 1.4 (2015-03-01).
+
 =head2 References
 
 =over 4
