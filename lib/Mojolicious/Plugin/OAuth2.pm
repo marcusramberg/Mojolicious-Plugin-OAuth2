@@ -288,7 +288,7 @@ sub _mock_interface {
     $provider->{token_url} => sub {
       my $c = shift;
       if ($c->param('client_secret') and $c->param('redirect_uri') and $c->param('code')) {
-        my $qp = Mojo::Parameters->new(access_token => $provider->{return_token}, lifetime => 3600);
+        my $qp = Mojo::Parameters->new(access_token => $provider->{return_token}, expires_in => 3600);
         $c->render(text => $qp->to_string);
       }
       else {
