@@ -15,6 +15,6 @@ WriteMakefile(
     },
   },
   BUILD_REQUIRES => {'Test::More'      => '0.88'},
-  PREREQ_PM      => {'IO::Socket::SSL' => '1.94', 'Mojolicious' => '6.0'},
+  PREREQ_PM      => {'IO::Socket::SSL' => '1.94', 'Mojolicious' => '6.0', 'Hash::Merge'=>0.200},
   test           => {TESTS             => 't/*.t'},
 );

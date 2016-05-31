@@ -4,9 +4,10 @@ use Mojo::Base 'Mojolicious::Plugin';
 use Mojo::UserAgent;
 use Mojo::Util 'deprecated';
 use Carp 'croak';
-use strict;
+use Hash::Merge qw( merge );
+#~ use strict; always
 
-our $VERSION = '1.53';
+our $VERSION = '1.54';
 
 has providers => sub {
   return {
@@ -37,21 +38,11 @@ has providers => sub {
 has _ua => sub { Mojo::UserAgent->new };
 
 sub register {
-  my ($self, $app, $config) = @_;
+  my ($self, $app,) = (shift, shift);
+  my $config = ref $_[0] eq 'HASH' ? shift : ref $_[0] eq 'CODE' ? shift->($app) : die "Config not implement";
+
+  $self->providers(merge $config, $self->providers);
   my $providers = $self->providers;
-
-  foreach my $provider (keys %$config) {
-    if (exists $providers->{$provider}) {
-      foreach my $key (keys %{$config->{$provider}}) {
-        $providers->{$provider}->{$key} = $config->{$provider}->{$key};
-      }
-    }
-    else {
-      $providers->{$provider} = $config->{$provider};
-    }
-  }
-
-  $self->providers($providers);
 
   if ($providers->{mocked}{key}) {
     $self->_mock_interface($app);
@@ -411,6 +402,10 @@ values are configuration for each provider. Here is a complete example:
       token_url     => "https://provider.example.com/token",
     },
   };
+
+Also plugin config can be callback which returns hashref for merge providers keys/values (see below):
+
+  plugin "OAuth2" => sub {my $app = shift; {<provider> => {key => ..., secret => ...,} }; };
 
 To make it a bit easier, L<Mojolicious::Plugin::OAuth2> has already
 values for C<authorize_url> and C<token_url> for the following providers:
