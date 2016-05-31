@@ -92,6 +92,10 @@ SYNOPSIS
         },
       };
 
+    Also plugin config can be callback which returns hashref for merge providers keys/values (see below):
+
+      plugin "OAuth2" => sub {my $app = shift; {<provider> => {key => ..., secret => ...,} }; };
+
     To make it a bit easier, Mojolicious::Plugin::OAuth2 has already values
     for "authorize_url" and "token_url" for the following providers:
 
