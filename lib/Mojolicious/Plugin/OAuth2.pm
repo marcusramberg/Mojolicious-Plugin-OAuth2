@@ -4,7 +4,6 @@ use Mojo::Base 'Mojolicious::Plugin';
 use Mojo::UserAgent;
 use Mojo::Util 'deprecated';
 use Carp 'croak';
-use strict;
 
 our $VERSION = '1.53';
 
@@ -40,18 +39,9 @@ sub register {
   my ($self, $app, $config) = @_;
   my $providers = $self->providers;
 
-  foreach my $provider (keys %$config) {
-    if (exists $providers->{$provider}) {
-      foreach my $key (keys %{$config->{$provider}}) {
-        $providers->{$provider}->{$key} = $config->{$provider}->{$key};
-      }
-    }
-    else {
-      $providers->{$provider} = $config->{$provider};
-    }
+  while ( my ($name, $vals) = each %$config ) {
+    @{ $providers->{$name} ||= {} }{ keys %$vals } = values %$vals;
   }
-
-  $self->providers($providers);
 
   if ($providers->{mocked}{key}) {
     $self->_mock_interface($app);
@@ -93,6 +83,7 @@ sub register {
       }
     }
   );
+  $app->helper('oauth2.process_tx'  => sub {shift; $self->_process_tx(@_) });
 }
 
 sub _args {
@@ -122,20 +113,13 @@ sub _get_authorize_url {
 
 sub _get_auth_token {
   my ($self, $tx, $nb) = @_;
-  my ($err, $token);
-  my $res = $tx->res;
+  my ($data, $err) = $self->_process_tx($tx);
 
-  if ($err = $tx->error) {
-    1;
-  }
-  elsif ($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-    $token = $res->json->{access_token};
-  }
-  else {
-    $token = Mojo::Parameters->new($res->body)->param('access_token');
-  }
+  die $err || 'Unknown error'
+    if $err || !$data || !$nb;
 
-  die $err->{message} || 'Unknown error' if !$token and !$nb;
+  my $token = $data->{access_token}
+    or die "No access_token in auth response data broken";
   return $token, $tx;
 }
 
@@ -205,17 +189,7 @@ sub _process_response_code {
       },
       sub {
         my ($delay, $tx) = @_;
-        my ($data, $err);
-
-        if ($err = $tx->error) {
-          $err = $err->{message} || $err->{code};
-        }
-        elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-          $data = $tx->res->json;
-        }
-        else {
-          $data = Mojo::Parameters->new($tx->res->body)->to_hash;
-        }
+        my ($data, $err) = $self->_process_tx($tx);
 
         $c->$cb($data ? '' : $err || 'Unknown error', $data);
       },
@@ -223,22 +197,27 @@ sub _process_response_code {
   }
   else {
     my $tx = $self->_ua->post($token_url->to_abs, form => $params);
-    my ($data, $err);
-
-    if ($err = $tx->error) {
-      $err = $err->{message} || $err->{code};
-    }
-    elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-      $data = $tx->res->json;
-    }
-    else {
-      $data = Mojo::Parameters->new($tx->res->body)->to_hash;
-    }
+    my ($data, $err) = $self->_process_tx($tx);
 
     die $err || 'Unknown error' if $err or !$data;
 
     return $data;
   }
+}
+
+sub _process_tx {
+  my ($self, $tx) = @_;
+  my ($data, $err);
+  if ($err = $tx->error) {
+    $err = $err->{message} || $err->{code};
+  }
+  elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
+    $data = $tx->res->json;
+  }
+  else {
+    $data = Mojo::Parameters->new($tx->res->body)->to_hash;
+  }
+  return $data, $err;
 }
 
 sub _process_response_error {
@@ -604,6 +583,13 @@ something like this:
     },
     ...
   }
+
+=head2 oauth2.process_tx
+
+This helper is usefull for processing any API json response:
+
+  my $tx = $c->app->ua->get($profile_url); # blocking example
+  my ($data, $err) = $c->oauth2->process_tx($tx);
 
 =head1 ATTRIBUTES
 
