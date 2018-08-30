@@ -2,7 +2,6 @@ package Mojolicious::Plugin::OAuth2;
 
 use Mojo::Base 'Mojolicious::Plugin';
 use Mojo::UserAgent;
-use Mojo::Util 'deprecated';
 use Carp 'croak';
 use strict;
 
@@ -69,30 +68,6 @@ sub register {
       return ref $_[-1] eq 'CODE' ? $c : undef;
     }
   );
-
-  $app->helper(
-    get_authorize_url => sub {
-      deprecated "get_authorize_url() is DEPRECATED in favor of \$c->oauth2->auth_url(...)";
-      $self->_get_authorize_url(@_);
-    }
-  );
-  $app->helper(
-    get_token => sub {
-      my $c = shift;
-
-      deprecated "get_token() is DEPRECATED in favor of \$c->oauth2->get_token(...)";
-
-      if ($c->param('code')) {
-        return $self->_handle_code($c, @_);
-      }
-      elsif ($c->param('error')) {
-        return $self->_handle_error($c, @_);
-      }
-      else {
-        return $c->redirect_to($self->_get_authorize_url($c, @_));
-      }
-    }
-  );
 }
 
 sub _args {
@@ -118,68 +93,6 @@ sub _get_authorize_url {
   $authorize_url->query->append(state => $args->{state}) if defined $args->{state};
   $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
   $authorize_url;
-}
-
-sub _get_auth_token {
-  my ($self, $tx, $nb) = @_;
-  my ($err, $token);
-  my $res = $tx->res;
-
-  if ($err = $tx->error) {
-    1;
-  }
-  elsif ($res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-    $token = $res->json->{access_token};
-  }
-  else {
-    $token = Mojo::Parameters->new($res->body)->param('access_token');
-  }
-
-  die $err->{message} || 'Unknown error' if !$token and !$nb;
-  return $token, $tx;
-}
-
-sub _handle_code {
-  my ($self, $c, $provider_id, $args, $cb) = _args(@_);
-  my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
-  my $token_url = Mojo::URL->new($provider->{token_url});
-  my $params    = {
-    client_secret => $provider->{secret},
-    client_id     => $provider->{key},
-    code          => scalar($c->param('code')),
-    grant_type    => 'authorization_code',
-    redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
-  };
-
-  $token_url->host($args->{host}) if exists $args->{host};
-
-  if ($cb) {
-    return $c->delay(
-      sub {
-        my ($delay) = @_;
-        $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
-      },
-      sub {
-        my ($delay, $tx) = @_;
-        $c->$cb($self->_get_auth_token($tx, $cb));
-      },
-    );
-  }
-  else {
-    return $self->_get_auth_token($self->_ua->post($token_url->to_abs, form => $params));
-  }
-}
-
-sub _handle_error {
-  my ($self, $c, $provider_id, $args, $cb) = _args(@_);
-  my $error = $c->param('error');
-
-  die $error unless $cb;
-  my $provider = $self->providers->{$provider_id} or croak "[error] Unknown OAuth2 provider $provider_id";
-  my $tx = $self->_ua->build_tx(GET => $provider->{authorize_url});
-  $tx->res->error({message => $error});
-  $c->$cb(undef, $tx);
-  $c;
 }
 
 sub _process_response_code {
@@ -314,14 +227,6 @@ dependency required to support it. Run the command below to check if
 L<IO::Socket::SSL> is installed.
 
    $ mojo version
-
-=head2 Breaking changes
-
-Between 1.51 (2015-03-18) and 1.53 (2015-09-08) we decided to remove the back
-compat hack for L</get_token>, making it act I<only> as documented.
-
-The two helpers C<get_authorize_url()> and C<get_token()> will be removed
-soon. They have been deprecated since 1.4 (2015-03-01).
 
 =head2 References
 

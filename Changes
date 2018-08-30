@@ -1,5 +1,9 @@
 Revision history for perl distribution Mojolicious-Plugin-OAuth2
 
+1.54 Not Released
+ - Removed deprecated helper get_authorize_url()
+ - Removed deprecated helper get_token()
+
 1.53 2015-09-08T09:27:17Z
  - Removed fix_get_token hack
  - Documented deprecation for get_authorize_url() and get_token()
