@@ -98,11 +98,6 @@ sub _get_authorize_url {
 sub _get_token {
   my ($self, $c, $args, $p) = @_;
 
-  my $provider_args = $self->providers->{$args->{provider}};
-  my $token_url     = Mojo::URL->new($provider_args->{token_url});
-  $token_url->host($args->{host}) if exists $args->{host};
-  $token_url = $token_url->to_abs;
-
   # Handle error response from provider callback URL
   if (my $err = $c->param('error_description') || $c->param('error')) {
     die $err unless $p;    # die on blocking
@@ -117,13 +112,18 @@ sub _get_token {
   }
 
   # Handle "code" from provider callback
-  my $params = {
+  my $provider_args = $self->providers->{$args->{provider}};
+  my $params        = {
     client_secret => $provider_args->{secret},
     client_id     => $provider_args->{key},
     code          => scalar($c->param('code')),
     grant_type    => 'authorization_code',
     redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
   };
+
+  my $token_url = Mojo::URL->new($provider_args->{token_url});
+  $token_url->host($args->{host}) if exists $args->{host};
+  $token_url = $token_url->to_abs;
 
   if ($p) {
     $self->_ua->post_p($token_url, form => $params)->then(sub { $p->resolve($self->_parse_provider_response(@_)) })
