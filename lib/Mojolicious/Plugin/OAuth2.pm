@@ -41,20 +41,10 @@ sub register {
   my $providers = $self->providers;
 
   foreach my $provider (keys %$config) {
-    if (exists $providers->{$provider}) {
-      foreach my $key (keys %{$config->{$provider}}) {
-        $providers->{$provider}->{$key} = $config->{$provider}->{$key};
-      }
+    $providers->{$provider} ||= {};
+    for my $key (keys %{$config->{$provider}}) {
+      $providers->{$provider}{$key} = $config->{$provider}{$key};
     }
-    else {
-      $providers->{$provider} = $config->{$provider};
-    }
-  }
-
-  $self->providers($providers);
-
-  if ($providers->{mocked}{key}) {
-    $self->_mock_interface($app);
   }
 
   $app->helper('oauth2.auth_url'    => sub { $self->_get_authorize_url($self->_args(@_)) });
@@ -77,6 +67,8 @@ sub register {
       return $self->_get_token($c, $args, $p);
     }
   );
+
+  $self->_mock_interface($app) if $providers->{mocked}{key};
 }
 
 sub _args {
