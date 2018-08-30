@@ -1,6 +1,6 @@
 Revision history for perl distribution Mojolicious-Plugin-OAuth2
 
-1.54 Not Released
+1.54 2018-08-30T12:48:19+0200
  - Add oauth2.get_token_p() helper
  - Compatible with Mojolicious 7.90 #53
  - Removed deprecated helper get_authorize_url()
