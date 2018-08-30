@@ -13,20 +13,15 @@ my ($token, $tx);
 
 get '/connect' => sub {
   my $self = shift;
-  $self->delay(
+  $self->oauth2->get_token_p('facebook')->then(
     sub {
-      my ($delay) = @_;
-      $self->oauth2->get_token(facebook => $delay->begin);
-    },
+      return unless my $provider_res = shift;    # Redirect
+      $self->render(
+        json => $self->ua->get("https://graph.facebook.com/me?access_token=$provider_res->{access_token}")->res->json);
+    }
+  )->catch(
     sub {
-      (my $delay, $token, $tx) = @_;
-
-      if ($token) {
-        $self->render(json => $self->ua->get('https://graph.facebook.com/me?access_token=' . $token)->res->json);
-      }
-      else {
-        $self->render(json => $tx->res->json || $tx->error);
-      }
+      $self->render(json => {message => shift, status => 500});
     }
   );
 };
@@ -39,8 +34,7 @@ $t->get_ok('/connect')->status_is(302)->header_like(Location => qr|https://graph
 
 # This i a bit ugly. Maybe it should be factored out in a different test?
 if ($ENV{OAUTH_FB_KEY} eq 'fail') {
-  $t->get_ok('/connect?code=123')->json_is('/error/code', 101)->json_is('/error/type', 'OAuthException')
-    ->json_has('/error/message');
+  $t->get_ok('/connect?code=123')->status_is(500)->json_has('/message');
 }
 
 done_testing;

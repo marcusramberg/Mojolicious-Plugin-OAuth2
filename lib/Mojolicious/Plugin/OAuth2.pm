@@ -1,6 +1,7 @@
 package Mojolicious::Plugin::OAuth2;
-
 use Mojo::Base 'Mojolicious::Plugin';
+
+use Mojo::Promise;
 use Mojo::UserAgent;
 use Carp 'croak';
 use strict;
@@ -56,132 +57,119 @@ sub register {
     $self->_mock_interface($app);
   }
 
-  $app->helper('oauth2.auth_url'  => sub { $self->_get_authorize_url(@_) });
-  $app->helper('oauth2.providers' => sub { $self->providers });
+  $app->helper('oauth2.auth_url'    => sub { $self->_get_authorize_url($self->_args(@_)) });
+  $app->helper('oauth2.providers'   => sub { $self->providers });
+  $app->helper('oauth2.get_token_p' => sub { $self->_get_token($self->_args(@_), Mojo::Promise->new) });
   $app->helper(
     'oauth2.get_token' => sub {
-      my $c = shift;
+      my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
+      my ($c, $args) = $self->_args(@_);
 
-      return $self->_process_response_error($c, @_) if $c->param('error');
-      return $self->_process_response_code($c, @_) if $c->param('code');
-      $c->redirect_to($self->_get_authorize_url($c, @_));
-      return ref $_[-1] eq 'CODE' ? $c : undef;
+      # Make sure we return Mojolicious::Controller and not Mojo::Promise
+      local $args->{return_controller} = 1;
+
+      # Blocking
+      return $self->_get_token($c, $args, undef) unless $cb;
+
+      # Non-blocking
+      my $p = Mojo::Promise->new;
+      $p->then(sub { $c->$cb('', shift) })->catch(sub { $c->$cb(shift, undef) });
+      return $self->_get_token($c, $args, $p);
     }
   );
 }
 
 sub _args {
-  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
-  my ($self, $c, $provider_id) = (shift, shift, shift);
-
-  return $self, $c, $provider_id || 'undef()', (@_ % 2 ? shift : {@_}), $cb;
+  my ($self, $c, $provider) = (shift, shift, shift);
+  my $args = @_ % 2 ? shift : {@_};
+  $args->{provider} = $provider || 'unknown';
+  croak "Invalid OAuth2 provider: $args->{provider}" unless $self->providers->{$args->{provider}};
+  return $c, $args;
 }
 
 sub _get_authorize_url {
-  my ($self, $c, $provider_id, $args, $cb) = _args(@_);
-  my $provider = $self->providers->{$provider_id} or croak "[auth_url] Unknown OAuth2 provider $provider_id";
+  my ($self, $c, $args) = @_;
+  my $provider_args = $self->providers->{$args->{provider}};
   my $authorize_url;
 
-  $provider->{key} or croak "[auth_url] 'key' for $provider_id is missing";
-
-  $args->{scope} ||= $self->providers->{$provider_id}{scope};
+  $args->{scope} ||= $provider_args->{scope};
   $args->{redirect_uri} ||= $c->url_for->to_abs->to_string;
-  $authorize_url = Mojo::URL->new($provider->{authorize_url});
+  $authorize_url = Mojo::URL->new($provider_args->{authorize_url});
   $authorize_url->host($args->{host}) if exists $args->{host};
-  $authorize_url->query->append(client_id => $provider->{key}, redirect_uri => $args->{redirect_uri});
+  $authorize_url->query->append(client_id => $provider_args->{key}, redirect_uri => $args->{redirect_uri});
   $authorize_url->query->append(scope => $args->{scope}) if defined $args->{scope};
   $authorize_url->query->append(state => $args->{state}) if defined $args->{state};
   $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
   $authorize_url;
 }
 
-sub _process_response_code {
-  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
-  my ($self, $c, $provider_id, $args) = @_;
-  my $provider  = $self->providers->{$provider_id} or croak "[code] Unknown OAuth2 provider $provider_id";
-  my $token_url = Mojo::URL->new($provider->{token_url});
-  my $params    = {
-    client_secret => $provider->{secret},
-    client_id     => $provider->{key},
+sub _get_token {
+  my ($self, $c, $args, $p) = @_;
+
+  my $provider_args = $self->providers->{$args->{provider}};
+  my $token_url     = Mojo::URL->new($provider_args->{token_url});
+  $token_url->host($args->{host}) if exists $args->{host};
+  $token_url = $token_url->to_abs;
+
+  # Handle error response from provider callback URL
+  if (my $err = $c->param('error_description') || $c->param('error')) {
+    die $err unless $p;    # die on blocking
+    $p->reject($err);
+    return $args->{return_controller} ? $c : $p;
+  }
+
+  # No error or code response from provider callback URL
+  unless ($c->param('code')) {
+    $c->redirect_to($self->_get_authorize_url($c, $args));
+    return $p ? $p->resolve(undef) : undef;
+  }
+
+  # Handle "code" from provider callback
+  my $params = {
+    client_secret => $provider_args->{secret},
+    client_id     => $provider_args->{key},
     code          => scalar($c->param('code')),
     grant_type    => 'authorization_code',
     redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
   };
 
-  $token_url->host($args->{host}) if exists $args->{host};
-
-  if ($cb) {
-    return $c->delay(
-      sub {
-        my ($delay) = @_;
-        $self->_ua->post($token_url->to_abs, form => $params => $delay->begin);
-      },
-      sub {
-        my ($delay, $tx) = @_;
-        my ($data, $err);
-
-        if ($err = $tx->error) {
-          $err = $err->{message} || $err->{code};
-        }
-        elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-          $data = $tx->res->json;
-        }
-        else {
-          $data = Mojo::Parameters->new($tx->res->body)->to_hash;
-        }
-
-        $c->$cb($data ? '' : $err || 'Unknown error', $data);
-      },
-    );
+  if ($p) {
+    $self->_ua->post_p($token_url, form => $params)->then(sub { $p->resolve($self->_parse_provider_response(@_)) })
+      ->catch(sub { $p->reject(@_) });
+    return $args->{return_controller} ? $c : $p;
   }
   else {
-    my $tx = $self->_ua->post($token_url->to_abs, form => $params);
-    my ($data, $err);
-
-    if ($err = $tx->error) {
-      $err = $err->{message} || $err->{code};
-    }
-    elsif ($tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!) {
-      $data = $tx->res->json;
-    }
-    else {
-      $data = Mojo::Parameters->new($tx->res->body)->to_hash;
-    }
-
-    die $err || 'Unknown error' if $err or !$data;
-
-    return $data;
+    return $self->_parse_provider_response($self->_ua->post($token_url, form => $params));
   }
 }
 
-sub _process_response_error {
-  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
-  my ($self, $c, $provider_id, $args) = @_;
+sub _parse_provider_response {
+  my ($self, $tx) = @_;
+  my $code = $tx->res->code || 'No response';
 
-  my $err = $c->param('error_description') || $c->param('error');
-  if ($cb) {
-    return $c->$cb($err, undef);
-  }
-  else {
-    die $err;
-  }
+  # Will cause the promise to be rejected
+  die sprintf '%s == %s', $tx->req->url, $tx->error->{message} // $code if $code ne '200';
+
+  return $tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!
+    ? $tx->res->json
+    : Mojo::Parameters->new($tx->res->body)->to_hash;
 }
 
 sub _mock_interface {
   my ($self, $app) = @_;
-  my $provider = $self->providers->{mocked};
+  my $provider_args = $self->providers->{mocked};
 
   $self->_ua->server->app($app);
 
-  $provider->{return_code}  ||= 'fake_code';
-  $provider->{return_token} ||= 'fake_token';
+  $provider_args->{return_code}  ||= 'fake_code';
+  $provider_args->{return_token} ||= 'fake_token';
 
   $app->routes->get(
-    $provider->{authorize_url} => sub {
+    $provider_args->{authorize_url} => sub {
       my $c = shift;
       if ($c->param('client_id') and $c->param('redirect_uri')) {
         my $url = Mojo::URL->new($c->param('redirect_uri'));
-        $url->query->append(code => $provider->{return_code});
+        $url->query->append(code => $provider_args->{return_code});
         $c->render(text => $c->tag('a', href => $url, sub {'Connect'}));
       }
       else {
@@ -191,14 +179,14 @@ sub _mock_interface {
   );
 
   $app->routes->post(
-    $provider->{token_url} => sub {
+    $provider_args->{token_url} => sub {
       my $c = shift;
       if ($c->param('client_secret') and $c->param('redirect_uri') and $c->param('code')) {
         my $qp = Mojo::Parameters->new(
-          access_token  => $provider->{return_token},
+          access_token  => $provider_args->{return_token},
           expires_in    => 3600,
           refresh_token => Mojo::Util::md5_sum(rand),
-          scope         => $provider->{scopes} || 'some list of scopes',
+          scope         => $provider_args->{scopes} || 'some list of scopes',
           token_type    => 'bearer',
         );
         $c->render(text => $qp->to_string);
@@ -244,55 +232,28 @@ L<IO::Socket::SSL> is installed.
 
 =head1 SYNOPSIS
 
-=head2 Example web application
+=head2 Example non-blocking application
 
   use Mojolicious::Lite;
 
   plugin "OAuth2" => {
     facebook => {
-      key => "some-public-app-id",
+      key    => "some-public-app-id",
       secret => $ENV{OAUTH2_FACEBOOK_SECRET},
     },
   };
 
   get "/connect" => sub {
     my $c = shift;
-    $c->delay(
-      sub {
-        my $delay = shift;
-        my $args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
-        $c->oauth2->get_token(facebook => $args, $delay->begin);
-      },
-      sub {
-        my ($delay, $err, $data) = @_;
-        return $c->render("connect", error => $err) unless $data->{access_token};
-        return $c->session(token => $c->redirect_to('profile'));
-      },
-    );
-  };
+    my $get_token_args = {redirect_uri => $c->url_for("connect")->userinfo(undef)->to_abs};
 
-=head2 Example blocking web application
-
-  use Mojolicious::Lite;
-
-  plugin "OAuth2" => {
-    facebook => {
-      key => "some-public-app-id",
-      secret => $ENV{OAUTH2_FACEBOOK_SECRET},
-    },
-  };
-
-  get "/connect" => sub {
-    my $c = shift;
-    my $args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
-    if (my $err = $c->param('error')) {
-      # do stuff with error from OAuth2 provider
-    } elsif (my $data = $c->oauth2->get_token(facebook => $args)) {
-      # do stuff with $data->{access_token};
-    } else {
-      # already redirected by OAuth2 plugin
-      return;
-    }
+    $c->oauth2->get_token_p(facebook => $get_token_args)->then(sub {
+      my $data = shift;
+      $c->session(token => $data->{access_token});
+      $c->redirect_to("profile");
+    })->catch(sub {
+      $c->render("connect", error => shift);
+    });
   };
 
 =head2 Custom connect button
@@ -494,6 +455,13 @@ The default is specified in the provider configuration.
 Scope to ask for credentials to. Should be a space separated list.
 
 =back
+
+=head2 oauth2.get_token_p
+
+  $promise = $c->oauth2->get_token_p($provider_name => \%args);
+
+Same as L</oauth2.get_token>, but returns a L<Mojo::Promise>. See L</SYNOPSIS>
+for example usage.
 
 =head2 oauth2.providers
 

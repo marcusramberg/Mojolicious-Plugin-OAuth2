@@ -1,3 +1,4 @@
+use lib '.';
 use t::Helper;
 
 my $app = t::Helper->make_app;
@@ -9,16 +10,15 @@ $app->routes->get(
   '/oauth-error' => sub {
     my $c = shift;
 
-    $c->delay(
+    $c->oauth2->get_token_p('test')->then(
       sub {
-        my $delay = shift;
-        $c->oauth2->get_token(test => $delay->begin);
-      },
+        return unless my $provider_res = shift;
+        return $c->render(text => "Token $provider_res->{access_token}");
+      }
+    )->catch(
       sub {
-        my ($delay, $err, $token) = @_;
-        return $c->render(text => $err, status => 500) unless $token;
-        return $c->render(text => "Token $token");
-      },
+        return $c->render(text => shift, status => 500);
+      }
     );
   }
 );
