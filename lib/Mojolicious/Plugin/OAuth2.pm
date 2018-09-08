@@ -107,7 +107,7 @@ sub _get_token {
 
   # No error or code response from provider callback URL
   unless ($c->param('code')) {
-    $c->redirect_to($self->_get_authorize_url($c, $args));
+    $c->redirect_to($self->_get_authorize_url($c, $args)) if $args->{redirect} // 1;
     return $p ? $p->resolve(undef) : undef;
   }
 
@@ -441,6 +441,10 @@ C<%args> can have:
 
 Useful if your provider uses different hosts for accessing different accounts.
 The default is specified in the provider configuration.
+
+=item * redirect
+
+Set C<redirect> to 0 to disable automatic redirect.
 
 =item * scope
 
