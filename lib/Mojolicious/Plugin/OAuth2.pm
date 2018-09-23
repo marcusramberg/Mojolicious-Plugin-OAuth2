@@ -27,7 +27,7 @@ has providers => sub {
       token_url     => 'https://github.com/login/oauth/access_token',
     },
     google => {
-      authorize_url => "https://accounts.google.com/o/oauth2/v2/auth",
+      authorize_url => "https://accounts.google.com/o/oauth2/v2/auth?response_type=code",
       token_url     => "https://www.googleapis.com/oauth2/v4/token",
     },
     mocked => {authorize_url => '/mocked/oauth/authorize', token_url => '/mocked/oauth/token', secret => 'fake_secret'},

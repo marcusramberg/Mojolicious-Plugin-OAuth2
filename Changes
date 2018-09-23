@@ -1,5 +1,8 @@
 Revision history for perl distribution Mojolicious-Plugin-OAuth2
 
+1.56 Not Relased
+ - Restore response_type to google authorize url.
+
 1.55 2018-09-08T20:29:56+0200
  - Made it possible to disable automatic redirect
 
