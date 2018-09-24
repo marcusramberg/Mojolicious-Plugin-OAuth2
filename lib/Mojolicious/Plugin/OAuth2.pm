@@ -478,7 +478,7 @@ something like this:
 
 =head2 providers
 
-Holds a hash of provider information. See L<oauth2.providers>.
+Holds a hash of provider information. See L</oauth2.providers>.
 
 =head1 METHODS
 
