@@ -6,7 +6,7 @@ use Mojo::UserAgent;
 use Carp 'croak';
 use strict;
 
-our $VERSION = '1.56';
+our $VERSION = '1.57';
 
 has providers => sub {
   return {
