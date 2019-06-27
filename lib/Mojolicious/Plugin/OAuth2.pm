@@ -22,6 +22,10 @@ has providers => sub {
       authorize_url => "https://graph.facebook.com/oauth/authorize",
       token_url     => "https://graph.facebook.com/oauth/access_token",
     },
+    instagram => {
+      authorize_url => "https://api.instagram.com/oauth/authorize/?response_type=code",
+      token_url     => "https://api.instagram.com/oauth/access_token",
+    },
     github => {
       authorize_url => 'https://github.com/login/oauth/authorize',
       token_url     => 'https://github.com/login/oauth/access_token',
@@ -29,6 +33,10 @@ has providers => sub {
     google => {
       authorize_url => "https://accounts.google.com/o/oauth2/v2/auth?response_type=code",
       token_url     => "https://www.googleapis.com/oauth2/v4/token",
+    },
+    vkontakte => {
+      authorize_url => "https://oauth.vk.com/authorize",
+      token_url     => "https://oauth.vk.com/access_token",
     },
     mocked => {authorize_url => '/mocked/oauth/authorize', token_url => '/mocked/oauth/token', secret => 'fake_secret'},
   };
@@ -293,11 +301,19 @@ L<https://developers.facebook.com/apps>.
 
 See also L<https://developers.facebook.com/docs/reference/dialogs/oauth/>.
 
+= item * instagram
+
+OAuth2 for Instagram API. You can find C<key> (Client ID) and
+C<secret> (Client Secret) from the app dashboard here:
+L<https://www.instagram.com/developer/clients/manage/>.
+
+See also L<https://www.instagram.com/developer/authentication/>.
+
 =item * github
 
 Authentication with Github.
 
-See also L<https://developer.github.com/v3/oauth/>
+See also L<https://developer.github.com/v3/oauth/>.
 
 =item * google
 
@@ -306,6 +322,13 @@ OAuth2 for Google. You can find the C<key> (CLIENT ID) and C<secret>
 "Credentials" in the menu at L<https://console.developers.google.com/project>.
 
 See also L<https://developers.google.com/+/quickstart/>.
+
+= item * vkontakte
+
+OAuth2 for Vkontakte. You can find C<key> (App ID) and C<secret>
+(Secure key) from the app dashboard here: L<https://vk.com/apps?act=manage>.
+
+See also L<https://vk.com/dev/authcode_flow_user>.
 
 =back
 
