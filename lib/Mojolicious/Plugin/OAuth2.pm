@@ -298,7 +298,7 @@ L<https://developers.facebook.com/apps>.
 
 See also L<https://developers.facebook.com/docs/reference/dialogs/oauth/>.
 
-= item * instagram
+=item * instagram
 
 OAuth2 for Instagram API. You can find C<key> (Client ID) and
 C<secret> (Client Secret) from the app dashboard here:
@@ -320,7 +320,7 @@ OAuth2 for Google. You can find the C<key> (CLIENT ID) and C<secret>
 
 See also L<https://developers.google.com/+/quickstart/>.
 
-= item * vkontakte
+=item * vkontakte
 
 OAuth2 for Vkontakte. You can find C<key> (App ID) and C<secret>
 (Secure key) from the app dashboard here: L<https://vk.com/apps?act=manage>.

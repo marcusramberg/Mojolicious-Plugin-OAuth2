@@ -1,5 +1,8 @@
 Revision history for perl distribution Mojolicious-Plugin-OAuth2
 
+1.59 Not Released
+ - Fix invalid "=item" in documentation.
+
 1.58 2019-07-03T14:22:38+0200
  - Add new Oauth2 providers: instagram.com
  - Add new Oauth2 providers: vk.com

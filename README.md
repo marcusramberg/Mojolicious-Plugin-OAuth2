@@ -90,7 +90,7 @@ values for `authorize_url` and `token_url` for the following providers:
 
     See also [https://developers.facebook.com/docs/reference/dialogs/oauth/](https://developers.facebook.com/docs/reference/dialogs/oauth/).
 
-    &#x3d; item \* instagram
+- instagram
 
     OAuth2 for Instagram API. You can find `key` (Client ID) and
     `secret` (Client Secret) from the app dashboard here:
@@ -112,7 +112,7 @@ values for `authorize_url` and `token_url` for the following providers:
 
     See also [https://developers.google.com/+/quickstart/](https://developers.google.com/+/quickstart/).
 
-    &#x3d; item \* vkontakte
+- vkontakte
 
     OAuth2 for Vkontakte. You can find `key` (App ID) and `secret`
     (Secure key) from the app dashboard here: [https://vk.com/apps?act=manage](https://vk.com/apps?act=manage).
