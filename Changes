@@ -1,7 +1,10 @@
 Revision history for perl distribution Mojolicious-Plugin-OAuth2
 
-1.57 2018-09-24T10:54:40+0200
+1.58 2019-07-03T14:22:38+0200
+ - Add new Oauth2 providers: instagram.com
+ - Add new Oauth2 providers: vk.com
 
+1.57 2018-09-24T10:54:40+0200
  - 1.56 was broken because of an error in a pre-release git ship version.
 
 1.56 2018-09-24T00:03:28+0200

@@ -6,7 +6,7 @@ use Mojo::UserAgent;
 use Carp 'croak';
 use strict;
 
-our $VERSION = '1.57';
+our $VERSION = '1.58';
 
 has providers => sub {
   return {
@@ -34,10 +34,7 @@ has providers => sub {
       authorize_url => "https://accounts.google.com/o/oauth2/v2/auth?response_type=code",
       token_url     => "https://www.googleapis.com/oauth2/v4/token",
     },
-    vkontakte => {
-      authorize_url => "https://oauth.vk.com/authorize",
-      token_url     => "https://oauth.vk.com/access_token",
-    },
+    vkontakte => {authorize_url => "https://oauth.vk.com/authorize", token_url => "https://oauth.vk.com/access_token",},
     mocked => {authorize_url => '/mocked/oauth/authorize', token_url => '/mocked/oauth/token', secret => 'fake_secret'},
   };
 };
@@ -92,7 +89,7 @@ sub _get_authorize_url {
   my $provider_args = $self->providers->{$args->{provider}};
   my $authorize_url;
 
-  $args->{scope} ||= $provider_args->{scope};
+  $args->{scope}        ||= $provider_args->{scope};
   $args->{redirect_uri} ||= $c->url_for->to_abs->to_string;
   $authorize_url = Mojo::URL->new($provider_args->{authorize_url});
   $authorize_url->host($args->{host}) if exists $args->{host};
