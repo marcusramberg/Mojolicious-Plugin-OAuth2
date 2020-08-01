@@ -3,6 +3,7 @@ use Mojo::Base 'Mojolicious::Plugin';
 
 use Mojo::Promise;
 use Mojo::UserAgent;
+use Mojo::Util qw[ sha1_sum ];
 use Carp 'croak';
 use strict;
 
@@ -34,8 +35,15 @@ has providers => sub {
       authorize_url => "https://accounts.google.com/o/oauth2/v2/auth?response_type=code",
       token_url     => "https://www.googleapis.com/oauth2/v4/token",
     },
-    vkontakte => {authorize_url => "https://oauth.vk.com/authorize", token_url => "https://oauth.vk.com/access_token",},
-    mocked => {authorize_url => '/mocked/oauth/authorize', token_url => '/mocked/oauth/token', secret => 'fake_secret'},
+    vkontakte => {
+        authorize_url => "https://oauth.vk.com/authorize",
+        token_url     => "https://oauth.vk.com/access_token",
+    },
+    mocked => {
+        authorize_url => '/mocked/oauth/authorize',
+        token_url     => '/mocked/oauth/token',
+        secret        => 'fake_secret'
+    },
   };
 };
 
@@ -55,8 +63,7 @@ sub register {
   $app->helper('oauth2.auth_url'    => sub { $self->_get_authorize_url($self->_args(@_)) });
   $app->helper('oauth2.providers'   => sub { $self->providers });
   $app->helper('oauth2.get_token_p' => sub { $self->_get_token($self->_args(@_), Mojo::Promise->new) });
-  $app->helper(
-    'oauth2.get_token' => sub {
+  $app->helper('oauth2.get_token'   => sub {
       my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
       my ($c, $args) = $self->_args(@_);
 
@@ -96,8 +103,17 @@ sub _get_authorize_url {
   $authorize_url->query->append(client_id => $provider_args->{key}, redirect_uri => $args->{redirect_uri});
   $authorize_url->query->append(scope => $args->{scope}) if defined $args->{scope};
   $authorize_url->query->append(state => $args->{state}) if defined $args->{state};
+  $authorize_url->query->append(state => $c->session->{$args->{state_session_key}} //= $self->_make_state)
+    if defined $args->{state_session_key};
   $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
   $authorize_url;
+}
+
+my $start = time;
+sub _make_state {
+  my ($self) = @_;
+  # Hopefully nobody will be able to guess this value: 
+  sha1_sum join '-', $start, time, $$, rand
 }
 
 sub _get_token {
@@ -112,8 +128,29 @@ sub _get_token {
 
   # No error or code response from provider callback URL
   unless ($c->param('code')) {
-    $c->redirect_to($self->_get_authorize_url($c, $args)) if $args->{redirect} // 1;
+    my $url = $self->_get_authorize_url($c, $args);
+    $c->app->log->debug("no code, redirecting to $url");
+    $c->redirect_to( $url) if $args->{redirect} // 1;
     return $p ? $p->resolve(undef) : undef;
+  }
+
+  if ($args->{state_session_key}) {
+    my $session_state = $c->session->{$args->{state_session_key}}; 
+    my $param_state = $c->param('state');
+
+    die "state missing"  if not defined $param_state;
+    if ($c->session->{$args->{state_session_key}} ne $param_state) {
+        $c->app->log->error("oauth state check: " . sprintf "state mismatch session(%s) != param(%s)", $session_state, $param_state);
+        die "oauth state mismatch"
+    }
+
+    # We don't want to re-use this value, so:
+    delete $c->session->{$args->{state_session_key}};
+    
+    $c->app->log->debug("oauth state check: looks good");
+  }
+  else {
+    $c->app->log->warning("oauth state check: no state_session_key defined, state param will not be checked");
   }
 
   # Handle "code" from provider callback
@@ -242,7 +279,10 @@ L<IO::Socket::SSL> is installed.
 
   get "/connect" => sub {
     my $c = shift;
-    my $get_token_args = {redirect_uri => $c->url_for("connect")->userinfo(undef)->to_abs};
+    my $get_token_args = {
+      state_session_key => 'oauth.state',
+      redirect_uri => $c->url_for("connect")->userinfo(undef)->to_abs
+    };
 
     $c->oauth2->get_token_p(facebook => $get_token_args)->then(sub {
       return unless my $provider_res = shift; # Redirct to Facebook
@@ -469,6 +509,15 @@ Set C<redirect> to 0 to disable automatic redirect.
 =item * scope
 
 Scope to ask for credentials to. Should be a space separated list.
+
+=item * state_session_key
+
+This key from the session will be passed to the oauth server (as C<state>).
+This value will also be used to validate the retuned value when the server
+redirects the user back to us.
+
+If the key is C<undef>, a (hopefully) difficult to guess value will be 
+generated and stored there.
 
 =back
 
