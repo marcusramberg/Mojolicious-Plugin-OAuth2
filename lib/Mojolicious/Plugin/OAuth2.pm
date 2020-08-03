@@ -145,9 +145,12 @@ sub _get_token {
     my $param_state   = $c->param('state');
   
     my ($err,$entry) = 
-      (not defined $param_state      ) ? ("state missing",  "state missing") :
-      ($session_state ne $param_state) ? ("state mismatch", "state mismatch session($session_state) != param($param_state)") 
-                                       : ();
+      (not defined $param_state or not defined $session_state ) 
+        ? ("state missing",  "state missing") :
+      ($session_state ne $param_state) 
+        ? ("state mismatch", "state mismatch session($session_state) != param($param_state)") 
+        : ();
+        
     if ($err) { 
       $c->app->log->error("oauth state check: $entry");
       die $err unless $p;    # die on blocking
