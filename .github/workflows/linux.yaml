@@ -32,4 +32,4 @@ jobs:
       - name: Install Dependencies
         run: curl -sL https://git.io/cpm | perl - install -g --show-build-log-on-failure
       - name: Run Tests
-        run: prove -l t
+        run: prove -vl t
