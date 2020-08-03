@@ -41,9 +41,10 @@ has providers => sub {
         token_url     => "https://oauth.vk.com/access_token",
     },
     mocked => {
-        authorize_url => '/mocked/oauth/authorize',
-        token_url     => '/mocked/oauth/token',
-        secret        => 'fake_secret'
+        authorize_url    => '/mocked/oauth/authorize',
+        token_url        => '/mocked/oauth/token',
+        secret           => 'fake_secret',
+        skip_state_check => 1,
     },
   };
 };
