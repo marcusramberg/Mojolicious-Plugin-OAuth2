@@ -19,17 +19,16 @@ $app->routes->get(
       }
     )->catch(
       sub {
-        return $c->render(text => shift, status => 500);
+        return $c->render(text => shift, status => 555);
       }
     );
   }
 );
 
-$t->get_ok('/connect')->status_is(302);    # ->content_like(qr/bar/);
+$t->get_ok('/connect?code=123&state=1')->status_is(200)->content_like(qr/state missing/); # 
 
-# The first time the state is good, the second time it should be cleared from the flash
-$t->get_ok('/connect?code=123&state=1')->status_is(200)->content_like(qr/Token /);
-$t->get_ok('/connect?code=123&state=1')->status_is(500)->content_like(qr/state mismatch/);
-$t->get_ok('/connect?code=123&state=') ->status_is(500)->content_like(qr/state missing/);
+$app->flash("state_for_test" => "this-is-a-secret");
+$t->get_ok('/connect?code=123&state=this-is-a-secret')->status_is(500)->content_like(qr/Token/);
+$t->get_ok('/connect?code=123&state=this-is-a-secret') ->status_is(500)->content_like(qr/state missing/);
 
 done_testing;
