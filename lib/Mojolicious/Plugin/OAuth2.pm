@@ -3,7 +3,7 @@ use Mojo::Base 'Mojolicious::Plugin';
 
 use Mojo::Promise;
 use Mojo::UserAgent;
-use Mojo::Util qw[ sha1_sum ];
+use Mojo::Util qw( sha1_sum );
 use Carp 'croak';
 use strict;
 
