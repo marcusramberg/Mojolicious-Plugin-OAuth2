@@ -138,10 +138,18 @@ sub _get_token {
     my $session_state = $c->session->{$args->{state_session_key}}; 
     my $param_state = $c->param('state');
 
-    die "state missing"  if not defined $param_state;
-    if ($c->session->{$args->{state_session_key}} ne $param_state) {
-        $c->app->log->error("oauth state check: " . sprintf "state mismatch session(%s) != param(%s)", $session_state, $param_state);
-        die "oauth state mismatch"
+    if (not defined $param_state) {
+      my $err = "state missing"
+      die $err unless $p;    # die on blocking
+      $p->reject($err);
+      return $args->{return_controller} ? $c : $p;
+    }
+    if ($session_state ne $param_state) {
+      $c->app->log->error("oauth state check: " . sprintf "state mismatch session(%s) != param(%s)", $session_state, $param_state);  
+      my $err =  "oauth state mismatch"
+      die $err unless $p;    # die on blocking
+      $p->reject($err);
+      return $args->{return_controller} ? $c : $p;
     }
 
     # We don't want to re-use this value, so:
