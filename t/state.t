@@ -28,10 +28,19 @@ $app->routes->get(
   }
 );
 
-$t->get_ok('/connect?code=123&state=1')->status_is(555)->content_like(qr/state missing/); # There is no matching state in the flash
+# There is no matching state in the flash:
+$t->get_ok('/connect?code=123&state=1')
+  ->status_is(555)
+  ->content_like(qr/state missing/);
+  
+# There is no state in the return url:
+$t->get_ok('/connect?code=123&_flash_state=this-is-a-secret')
+  ->status_is(555)
+  ->content_like(qr/state missing/);
 
-$t->get_ok('/connect?code=123&_flash_state=this-is-a-secret')->status_is(555)->content_like(qr/state missing/); # There is no state in the return url
-
-$t->get_ok('/connect?code=123&_flash_state=this-is-a-secret&state=this-is-a-secret') ->status_is(500)->content_like(qr/Token /); # Matching states.
+# Matching states:
+$t->get_ok('/connect?code=123&_flash_state=this-is-a-secret&state=this-is-a-secret')
+  ->status_is(200)
+  ->content_like(qr/Token /); 
 
 done_testing;
