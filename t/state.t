@@ -11,6 +11,9 @@ Mojo::Util::monkey_patch('Mojolicious::Plugin::OAuth2', _make_state => sub { ++ 
 $app->routes->get(
   '/connect' => sub {
     my $c = shift;
+   
+    my $flash_state = $c->param('_flash_state');
+    $c->flash("state_for_test" => $flash_state) if $flash_state;
 
     $c->oauth2->get_token_p('test')->then(
       sub {
@@ -25,6 +28,10 @@ $app->routes->get(
   }
 );
 
-$t->get_ok('/connect?code=123&state=1')->status_is(555)->content_like(qr/state missing/); # 
+$t->get_ok('/connect?code=123&state=1')->status_is(555)->content_like(qr/state missing/); # There is no matching state in the flash
+
+$t->get_ok('/connect?code=123&_flash_state=this-is-a-secret')->status_is(555)->content_like(qr/state missing/); # There is no state in the return url
+
+$t->get_ok('/connect?code=123&_flash_state=this-is-a-secret&state=this-is-a-secret') ->status_is(500)->content_like(qr/Token /); # Matching states.
 
 done_testing;
