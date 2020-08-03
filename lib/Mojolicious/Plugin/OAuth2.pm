@@ -14,7 +14,7 @@ has providers => sub {
   return {
     dailymotion => {
       authorize_url => "https://api.dailymotion.com/oauth/authorize",
-      token_url     => "https://api.dailymotion.com/oauth/token"
+      token_url     => "https://api.dailymotion.com/oauth/token",
     },
     eventbrite => {
       authorize_url => 'https://www.eventbrite.com/oauth/authorize',
@@ -103,10 +103,12 @@ sub _get_authorize_url {
   $authorize_url->host($args->{host}) if exists $args->{host};
   $authorize_url->query->append(client_id => $provider_args->{key}, redirect_uri => $args->{redirect_uri});
   $authorize_url->query->append(scope => $args->{scope}) if defined $args->{scope};
-  $authorize_url->query->append(state => $args->{state}) if defined $args->{state};
-  $authorize_url->query->append(state => $c->session->{$args->{state_session_key}} //= $self->_make_state)
-    if defined $args->{state_session_key};
   $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
+  
+  my $state = $args->{state} // $self->_make_state;
+  $c->flash( "state_for_" . $args->{provider} => $state);
+  $authorize_url->query->append(state => $state);
+  
   $authorize_url;
 }
 
@@ -135,34 +137,25 @@ sub _get_token {
     return $p ? $p->resolve(undef) : undef;
   }
 
-  if ($args->{state_session_key}) {
-    my $session_state = $c->session->{$args->{state_session_key}}; 
-    my $param_state = $c->param('state');
-
-    if (not defined $param_state) {
-      my $err = "state missing";
-      $c->app->log->error("oauth state check: $err");
-      die $err unless $p;    # die on blocking
-      $p->reject($err);
-      return $args->{return_controller} ? $c : $p;
-    }
-    if ($session_state ne $param_state) {
-      $c->app->log->error("oauth state check: state mismatch session($session_state) != param($param_state)");
-      my $err =  "oauth state mismatch";
-      die $err unless $p;    # die on blocking
-      $p->reject($err);
-      return $args->{return_controller} ? $c : $p;
-    }
-
-    # We don't want to re-use this value, so:
-    delete $c->session->{$args->{state_session_key}};
+  if (  not $self->providers->{ $args->{provider} }{skip_state_check}
+    and not $args->{skip_state_check} ){
     
-    $c->app->log->debug("oauth state check: looks good");
+    my $session_state = $c->flash( "state_for_" . $args->{provider} );  
+    my $param_state   = $c->param('state');
+  
+    my ($err,$entry) = 
+      (not defined $param_state      ) ? ("state missing",  "state missing") :
+      ($session_state ne $param_state) ? ("state mismatch", "state mismatch session($session_state) != param($param_state)") 
+                                       : ();
+    if ($err) { 
+      $c->app->log->error("oauth state check: $entry");
+      die $err unless $p;    # die on blocking
+      $p->reject($err);
+      return $args->{return_controller} ? $c : $p;
+    }
+    $c->app->log->info("oauth state check: success");
   }
-  else {
-    $c->app->log->warn("oauth state check: no state_session_key defined, state param will not be checked");
-  }
-
+  
   # Handle "code" from provider callback
   my $provider_args = $self->providers->{$args->{provider}};
   my $params        = {
@@ -459,8 +452,13 @@ Scope to ask for credentials to. Should be a space separated list.
 =item * state
 
 A string that will be sent to the identity provider. When the user returns
-from the identity provider, this exact same string will be carried with the user,
-as a GET parameter called C<state> in the URL that the user will return to.
+from the identity provider, this string will checked against its previous a
+value stored in the session.
+
+If absent, a "difficult to guess" value will be generated. 
+
+You can use C<< skip_state_check => 1 >> to skip the check when the user 
+returns from the provider.
 
 =back
 
@@ -519,15 +517,6 @@ Set C<redirect> to 0 to disable automatic redirect.
 =item * scope
 
 Scope to ask for credentials to. Should be a space separated list.
-
-=item * state_session_key
-
-This key from the session will be passed to the oauth server (as C<state>).
-This value will also be used to validate the retuned value when the server
-redirects the user back to us.
-
-If the key is C<undef>, a (hopefully) difficult to guess value will be 
-generated and stored there.
 
 =back
 
