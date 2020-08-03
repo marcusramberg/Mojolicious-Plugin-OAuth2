@@ -25,6 +25,7 @@ sub make_app {
       if ($c->param('client_id') and $c->param('redirect_uri') and $c->param('scope')) {
         my $return = Mojo::URL->new($c->param('redirect_uri'));
         $return->query->append(code => 'fake_code');
+        $return->query->append(state => $c->param('state') // 'fake_state' );
         $c->redirect_to($return);
       }
       else {
