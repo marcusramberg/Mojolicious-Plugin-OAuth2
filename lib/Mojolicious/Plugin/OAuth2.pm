@@ -5,6 +5,7 @@ use Mojo::Promise;
 use Mojo::UserAgent;
 use Mojo::Util qw( sha1_sum );
 use Carp 'croak';
+use Time::HiRes ();
 use strict;
 
 our $VERSION = '1.58';
@@ -109,11 +110,11 @@ sub _get_authorize_url {
   $authorize_url;
 }
 
-my $start = time;
+my $start = Time::HiRes::time;
 sub _make_state {
   my ($self) = @_;
   # Hopefully nobody will be able to guess this value: 
-  sha1_sum join '-', $start, time, $$, rand
+  return sha1_sum join '-', $start, Time::HiRes::time, $$, $<, rand;
 }
 
 sub _get_token {
@@ -139,14 +140,15 @@ sub _get_token {
     my $param_state = $c->param('state');
 
     if (not defined $param_state) {
-      my $err = "state missing"
+      my $err = "state missing";
+      $c->app->log->error("oauth state check: $err");
       die $err unless $p;    # die on blocking
       $p->reject($err);
       return $args->{return_controller} ? $c : $p;
     }
     if ($session_state ne $param_state) {
-      $c->app->log->error("oauth state check: " . sprintf "state mismatch session(%s) != param(%s)", $session_state, $param_state);  
-      my $err =  "oauth state mismatch"
+      $c->app->log->error("oauth state check: state mismatch session($session_state) != param($param_state)");
+      my $err =  "oauth state mismatch";
       die $err unless $p;    # die on blocking
       $p->reject($err);
       return $args->{return_controller} ? $c : $p;
