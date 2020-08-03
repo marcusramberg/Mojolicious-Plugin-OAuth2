@@ -160,7 +160,7 @@ sub _get_token {
     $c->app->log->debug("oauth state check: looks good");
   }
   else {
-    $c->app->log->warning("oauth state check: no state_session_key defined, state param will not be checked");
+    $c->app->log->warn("oauth state check: no state_session_key defined, state param will not be checked");
   }
 
   # Handle "code" from provider callback
