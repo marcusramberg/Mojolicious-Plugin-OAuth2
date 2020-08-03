@@ -25,10 +25,6 @@ $app->routes->get(
   }
 );
 
-$t->get_ok('/connect?code=123&state=1')->status_is(200)->content_like(qr/state missing/); # 
-
-$app->flash("state_for_test" => "this-is-a-secret");
-$t->get_ok('/connect?code=123&state=this-is-a-secret')->status_is(500)->content_like(qr/Token/);
-$t->get_ok('/connect?code=123&state=this-is-a-secret') ->status_is(500)->content_like(qr/state missing/);
+$t->get_ok('/connect?code=123&state=1')->status_is(555)->content_like(qr/state missing/); # 
 
 done_testing;
