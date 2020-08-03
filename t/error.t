@@ -10,7 +10,7 @@ $app->routes->get(
   '/oauth-error' => sub {
     my $c = shift;
 
-    $c->oauth2->get_token_p('test')->then(
+    $c->oauth2->get_token_p('test', skip_state_check=>1)->then(
       sub {
         return unless my $provider_res = shift;
         return $c->render(text => "Token $provider_res->{access_token}");
