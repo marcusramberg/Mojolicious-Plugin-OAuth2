@@ -28,7 +28,7 @@ $app->routes->get(
 $t->get_ok('/connect')->status_is(302);    # ->content_like(qr/bar/);
 
 # The first time the state is good, the second time it should be cleared from the flash
-$t->get_ok('/connect?code=123&state=1')->status_is(200)->content_like(qr/Token \Q$provider_res->{access_token}/);
+$t->get_ok('/connect?code=123&state=1')->status_is(200)->content_like(qr/Token /);
 $t->get_ok('/connect?code=123&state=1')->status_is(500)->content_like(qr/state mismatch/);
 $t->get_ok('/connect?code=123&state=') ->status_is(500)->content_like(qr/state missing/);
 
