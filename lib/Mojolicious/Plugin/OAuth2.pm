@@ -287,7 +287,6 @@ L<IO::Socket::SSL> is installed.
   get "/connect" => sub {
     my $c = shift;
     my $get_token_args = {
-      state_session_key => 'oauth.state',
       redirect_uri => $c->url_for("connect")->userinfo(undef)->to_abs
     };
 
