@@ -9,6 +9,7 @@ use Time::HiRes ();
 use strict;
 
 our $VERSION = '1.58';
+our $ENABLE_LOGGING;
 
 has providers => sub {
   return {
@@ -106,6 +107,7 @@ sub _get_authorize_url {
   $authorize_url->query->append(scope => $args->{scope}) if defined $args->{scope};
   $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
   
+  # Persist the state, so we can validate it when the user is redirected back
   my $state = $args->{state} // $self->_make_state;
   $c->flash( "state_for_" . $args->{provider} => $state);
   $authorize_url->query->append(state => $state);
@@ -133,11 +135,12 @@ sub _get_token {
   # No error or code response from provider callback URL
   unless ($c->param('code')) {
     my $url = $self->_get_authorize_url($c, $args);
-    $c->app->log->debug("no code, redirecting to $url");
+    $c->app->log->debug("no code, redirecting to $url") if $ENABLE_LOGGING;
     $c->redirect_to( $url) if $args->{redirect} // 1;
     return $p ? $p->resolve(undef) : undef;
   }
 
+  # Validate "state" against the one in the flash
   if (  not $self->providers->{ $args->{provider} }{skip_state_check}
     and not $args->{skip_state_check} ){
     
@@ -152,12 +155,12 @@ sub _get_token {
         : ();
         
     if ($err) { 
-      $c->app->log->error("oauth state check: $entry");
+      $c->app->log->error("oauth state check: $entry") if $ENABLE_LOGGING;
       die $err unless $p;    # die on blocking
       $p->reject($err);
       return $args->{return_controller} ? $c : $p;
     }
-    $c->app->log->info("oauth state check: success");
+    $c->app->log->info("oauth state check: success") if $ENABLE_LOGGING;
   }
   
   # Handle "code" from provider callback
