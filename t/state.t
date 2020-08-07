@@ -5,8 +5,6 @@ my $app = t::Helper->make_app;
 my $t   = Test::Mojo->new($app);
 
 Mojo::Util::monkey_patch('Mojolicious::Plugin::OAuth2', _ua         => sub { $t->ua });
-my $state=0;
-Mojo::Util::monkey_patch('Mojolicious::Plugin::OAuth2', _make_state => sub { ++ $state });
 
 $app->routes->get(
   '/connect' => sub {
@@ -29,7 +27,7 @@ $app->routes->get(
 );
 
 # There is no matching state in the flash:
-$t->get_ok('/connect?code=123&state=1')
+$t->get_ok('/connect?code=123&state=this-wont-match-the-flash')
   ->status_is(555)
   ->content_like(qr/state missing/);
   
