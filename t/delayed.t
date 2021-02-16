@@ -6,29 +6,15 @@ my $t   = Test::Mojo->new($app);
 
 Mojo::Util::monkey_patch('Mojolicious::Plugin::OAuth2', _ua => sub { $t->ua });
 
-$t->app->helper(
-  delay => sub {
-    my $c  = shift;
-    my $tx = $c->render_later->tx;
-    Mojo::IOLoop->delay(@_)->catch(sub { $c->helpers->reply->exception(pop) and undef $tx })->wait;
-  }
-);
-
 $app->routes->get(
   '/oauth-delayed' => sub {
     my $c = shift;
 
-    $c->delay(
-      sub {
-        my $delay = shift;
-        $c->oauth2->get_token(test => $delay->begin);
-      },
-      sub {
-        my ($delay, $err, $provider_res) = @_;
-        return $c->render(text => $err) unless $provider_res;
-        return $c->render(text => "Token $provider_res->{access_token}");
-      },
-    );
+    $c->oauth2->get_token(test => sub {
+      my (undef, $err, $provider_res) = @_;
+      return $c->render(text => $err) unless $provider_res;
+      return $c->render(text => "Token $provider_res->{access_token}");
+    });
   }
 );
 
