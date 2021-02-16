@@ -6,7 +6,7 @@ use Mojo::UserAgent;
 use Carp 'croak';
 use strict;
 
-our $VERSION = '1.58';
+our $VERSION = '1.59';
 
 has providers => sub {
   return {
@@ -94,8 +94,8 @@ sub _get_authorize_url {
   $authorize_url = Mojo::URL->new($provider_args->{authorize_url});
   $authorize_url->host($args->{host}) if exists $args->{host};
   $authorize_url->query->append(client_id => $provider_args->{key}, redirect_uri => $args->{redirect_uri});
-  $authorize_url->query->append(scope => $args->{scope}) if defined $args->{scope};
-  $authorize_url->query->append(state => $args->{state}) if defined $args->{state};
+  $authorize_url->query->append(scope     => $args->{scope}) if defined $args->{scope};
+  $authorize_url->query->append(state     => $args->{state}) if defined $args->{state};
   $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
   $authorize_url;
 }

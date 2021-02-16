@@ -8,8 +8,9 @@ my %WriteMakefileArgs = (
   ABSTRACT_FROM  => 'lib/Mojolicious/Plugin/OAuth2.pm',
   VERSION_FROM   => 'lib/Mojolicious/Plugin/OAuth2.pm',
   EXE_FILES      => [qw()],
+  OBJECT         => '',
   BUILD_REQUIRES => {},
-  TEST_REQUIRES  => {'Test::More' => '0.88'},
+  TEST_REQUIRES  => {'Test::More'      => '0.88'},
   PREREQ_PM      => {'IO::Socket::SSL' => '1.94', 'Mojolicious' => '7.53'},
   META_MERGE     => {
     'dynamic_config' => 0,

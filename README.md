@@ -10,7 +10,7 @@ popular providers, but you can add your own easily as well.
 
 Note that OAuth2 requires https, so you need to have the optional Mojolicious
 dependency required to support it. Run the command below to check if
-[IO::Socket::SSL](https://metacpan.org/pod/IO::Socket::SSL) is installed.
+[IO::Socket::SSL](https://metacpan.org/pod/IO%3A%3ASocket%3A%3ASSL) is installed.
 
     $ mojo version
 
@@ -69,7 +69,7 @@ values are configuration for each provider. Here is a complete example:
       },
     };
 
-To make it a bit easier, [Mojolicious::Plugin::OAuth2](https://metacpan.org/pod/Mojolicious::Plugin::OAuth2) has already
+To make it a bit easier, [Mojolicious::Plugin::OAuth2](https://metacpan.org/pod/Mojolicious%3A%3APlugin%3A%3AOAuth2) has already
 values for `authorize_url` and `token_url` for the following providers:
 
 - dailymotion
@@ -160,7 +160,7 @@ The code above will add two new routes to your application:
 
     $url = $c->oauth2->auth_url($provider => \%args);
 
-Returns a [Mojo::URL](https://metacpan.org/pod/Mojo::URL) object which contain the authorize URL. This is
+Returns a [Mojo::URL](https://metacpan.org/pod/Mojo%3A%3AURL) object which contain the authorize URL. This is
 useful if you want to add the authorize URL as a link to your webpage
 instead of doing a redirect like ["oauth2.get\_token"](#oauth2-get_token) does. `%args` is optional,
 but can contain:
@@ -245,7 +245,7 @@ when [registering](#synopsis) the plugin.
 
     $promise = $c->oauth2->get_token_p($provider_name => \%args);
 
-Same as ["oauth2.get\_token"](#oauth2-get_token), but returns a [Mojo::Promise](https://metacpan.org/pod/Mojo::Promise). See ["SYNOPSIS"](#synopsis)
+Same as ["oauth2.get\_token"](#oauth2-get_token), but returns a [Mojo::Promise](https://metacpan.org/pod/Mojo%3A%3APromise). See ["SYNOPSIS"](#synopsis)
 for example usage.
 
 ## oauth2.providers
