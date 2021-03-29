@@ -2,9 +2,12 @@ package Mojolicious::Plugin::OAuth2;
 use Mojo::Base 'Mojolicious::Plugin';
 
 use Mojo::Promise;
+use Mojo::URL;
 use Mojo::UserAgent;
 use Carp 'croak';
 use strict;
+
+use constant MOJO_JWT => !!(eval { require Mojo::JWT; require Crypt::OpenSSL::RSA; require Crypt::OpenSSL::Bignum; 1 });
 
 our $VERSION = '1.59';
 
@@ -72,8 +75,18 @@ sub register {
       return $self->_get_token($c, $args, $p);
     }
   );
+  $app->helper(
+    'oauth2.jwt_decode' => sub {
+      my $peek = ref $_[-1] eq 'CODE' ? pop : undef;
+      my ($c, $args) = $self->_args(@_);
+      return $self->providers->{$args->{provider}}{jwt}->decode($args->{data}, $peek);
+    }
+  );
+  $app->helper('oauth2.get_refresh_token_p' => sub { $self->_get_refresh_token($self->_args(@_), Mojo::Promise->new) });
+  $app->helper('oauth2.logout_url'          => sub { $self->_get_logout_url($self->_args(@_)) });
 
   $self->_mock_interface($app) if $providers->{mocked}{key};
+  $self->_warmup_openid($app)  if MOJO_JWT;
 }
 
 sub _args {
@@ -98,6 +111,42 @@ sub _get_authorize_url {
   $authorize_url->query->append(state     => $args->{state}) if defined $args->{state};
   $authorize_url->query($args->{authorize_query}) if exists $args->{authorize_query};
   $authorize_url;
+}
+
+sub _get_logout_url {
+  my ($self, $c, $args) = @_;
+  return Mojo::URL->new($self->providers->{$args->{provider}}{end_session_url})->tap(
+    query => {
+      post_logout_redirect_uri => $args->{post_logout_redirect_uri},
+      id_token_hint            => $args->{id_token_hint},
+      state                    => $args->{state}
+    }
+  );
+}
+
+sub _get_refresh_token {
+  my ($self, $c, $args, $p) = @_;
+
+  # Handle error response from oidc provider callback URL - TODO: is this possible?
+  if (my $err = $c->param('error_description') || $c->param('error')) {
+    die $err unless $p;    # die on blocking
+    $p->reject($err);
+    return $args->{return_controller} ? $c : $p;
+  }
+
+  my $provider_args = $self->providers->{$args->{provider}};
+  my $params        = {
+    client_secret => $provider_args->{secret},
+    client_id     => $provider_args->{key},
+    grant_type    => 'refresh_token',
+    refresh_token => $args->{refresh_token},
+    scope         => $provider_args->{scope},
+  };
+
+  my $token_url = Mojo::URL->new($provider_args->{token_url});
+  $token_url->host($args->{host}) if exists $args->{host};
+
+  return $self->_token_url_transact($token_url->to_abs, $params, $p, $args->{return_controller} ? $c : undef);
 }
 
 sub _get_token {
@@ -125,19 +174,12 @@ sub _get_token {
     grant_type    => 'authorization_code',
     redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
   };
+  $params->{state} = $c->param('state') if $c->param('state');
 
   my $token_url = Mojo::URL->new($provider_args->{token_url});
   $token_url->host($args->{host}) if exists $args->{host};
-  $token_url = $token_url->to_abs;
 
-  if ($p) {
-    $self->_ua->post_p($token_url, form => $params)->then(sub { $p->resolve($self->_parse_provider_response(@_)) })
-      ->catch(sub { $p->reject(@_) });
-    return $args->{return_controller} ? $c : $p;
-  }
-  else {
-    return $self->_parse_provider_response($self->_ua->post($token_url, form => $params));
-  }
+  return $self->_token_url_transact($token_url->to_abs, $params, $p, $args->{return_controller} ? $c : undef);
 }
 
 sub _parse_provider_response {
@@ -157,6 +199,7 @@ sub _mock_interface {
   my $provider_args = $self->providers->{mocked};
 
   $self->_ua->server->app($app);
+  return $self->_mock_interface_oidc($app, $provider_args) if MOJO_JWT and $provider_args->{well_known_url};
 
   $provider_args->{return_code}  ||= 'fake_code';
   $provider_args->{return_token} ||= 'fake_token';
@@ -195,11 +238,153 @@ sub _mock_interface {
   );
 }
 
+sub _mock_interface_oidc {
+  my ($self, $app, $provider) = @_;
+  my $nb_url = $app->ua->server->nb_url;
+  my $rsa    = Crypt::OpenSSL::RSA->generate_key(2048);
+  my $known  = $provider->{well_known_url};
+  my $auth   = '/mocked/oauth2/authorize';
+  my $iss    = '/mocked/oauth2/v2.0';
+  my $jwks   = '/mocked/oauth2/keys';
+  my $logout = '/mocked/oauth2/logout';
+  my $token  = '/mocked/oauth2/token';
+  push @{$app->renderer->classes}, __PACKAGE__;
+  $app->routes->get(
+    $known => sub {
+      my $c = shift;
+      $c->render(
+        'oauth2/mock/configuration',
+        format                 => 'json',
+        authorization_endpoint => $nb_url->clone->tap(path => $auth),
+        end_session_endpoint   => $nb_url->clone->tap(path => $logout),
+        issuer                 => $nb_url->clone->tap(path => $iss),
+        jwks_uri               => $nb_url->clone->tap(path => $jwks),
+        token_endpoint         => $nb_url->clone->tap(path => $token)
+      );
+    }
+  );
+  $app->routes->get(
+    $jwks => sub {
+      my $c = shift;
+      my ($n, $e) = $rsa->get_key_parameters;
+      (my $x5c = $rsa->get_public_key_string) =~ s/\n/\\n/g;
+      require MIME::Base64;
+      return $c->render(
+        'oauth2/mock/keys',
+        format => 'json',
+        'n'    => MIME::Base64::encode_base64url($n->to_bin),
+        'e'    => MIME::Base64::encode_base64url($e->to_bin),
+        'x5c'  => $x5c,
+        issuer => $c->url_for($iss)->to_abs,
+      );
+    }
+  );
+
+  $app->routes->any(
+    $auth => sub {
+      my $c = shift;
+      return $c->render(
+        'oauth2/mock/form_post',
+        format       => 'html',
+        redirect_uri => $c->param('redirect_uri'),
+        code         => "authorize-code",
+        state        => $c->param('state')
+      ) if ($c->param('response_mode') eq 'form_post');
+
+      # $c->param('response_mode') eq 'query'
+      my $url = Mojo::URL->new($c->param('redirect_uri'));
+      $url->query({code => "authorize-code", state => $c->param('state')});
+      return $c->redirect_to($url);
+    }
+  );
+
+  $app->routes->any(
+    $token => sub {
+      my $c = shift;
+      return $c->render(json => {error => 'invalid_request'}, status => 500)
+        unless (($c->param('client_secret') and $c->param('redirect_uri') and $c->param('code'))
+        || ($c->param('grant_type') eq 'refresh_token' and $c->param('refresh_token')));
+      my $claims = {
+        aud                => $c->param('client_id'),
+        email              => 'foo.bar@example.com',
+        iss                => $c->url_for($iss)->to_abs,
+        name               => 'foo bar',
+        preferred_username => 'foo.bar@example.com',
+        sub                => 'foo.bar'
+      };
+      return $c->render(
+        'oauth2/mock/token',
+        format   => 'json',
+        id_token => Mojo::JWT->new(
+          algorithm => 'RS256',
+          secret    => $rsa->get_private_key_string,
+          set_iat   => 1,
+          claims    => $claims,
+          header    => {kid => 'TEST_SIGNING_KEY'}
+        )->expires(Mojo::JWT->now + 3600)->encode,
+        refresh_token => $c->param('refresh_token') // 'refresh-token',
+      );
+    }
+  );
+
+  $app->routes->any(
+    $logout => sub {
+      my $c      = shift;
+      my $rp_url = Mojo::URL->new($c->param('post_logout_redirect_uri'))
+        ->query({id_token_hint => $c->param('id_token_hint'), state => $c->param('state'),});
+      $c->redirect_to($rp_url);
+    }
+  );
+  return $self;
+}
+
+sub _token_url_transact {
+  my ($self, $token_url, $params, $p, $c) = @_;
+  if ($p) {
+    $self->_ua->post_p($token_url, form => $params)->then(sub { $p->resolve($self->_parse_provider_response(@_)) })
+      ->catch(sub { $p->reject(@_); () });
+    return $c || $p;
+  }
+  else {
+    return $self->_parse_provider_response($self->_ua->post($token_url, form => $params));
+  }
+}
+
+sub _warmup_openid {
+  my ($self, $app) = (shift, shift);
+  my $providers = $self->providers;
+  for my $provider (keys %$providers) {
+    next unless my $well_known = $providers->{$provider}->{well_known_url};
+    $app->log->debug("Fetching OpenID configuration from $well_known");
+    $self->_warmup_openid_provider_p($provider, $well_known)->catch(sub { $app->log->error(shift) })->wait;
+  }
+  return $self;
+}
+
+sub _warmup_openid_provider_p {
+  my ($self, $provider, $well_known) = (shift, shift, shift);
+  my $config = $self->providers->{$provider};
+  $self->_ua->get_p($well_known)->then(
+    sub {
+      my $tx  = shift;
+      my $res = $tx->result->json;
+      $config->{authorize_url}   = $res->{authorization_endpoint};
+      $config->{end_session_url} = $res->{end_session_endpoint};
+      $config->{token_url}       = $res->{token_endpoint};
+      $config->{userinfo_url}    = $res->{userinfo_endpoint};
+      $config->{issuer}          = $res->{issuer};
+      $config->{scope} //= 'openid';
+      $res;
+    }
+  )->then(sub { $self->_ua->get_p(shift->{jwks_uri}) })
+    ->then(sub { $config->{jwt} = Mojo::JWT->new->add_jwkset(shift->result->json) })->catch(sub { warn @_; });
+}
+
 1;
 
 =head1 NAME
 
-Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs
+Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs including OpenID Connect
 
 =head1 DESCRIPTION
 
@@ -224,6 +409,8 @@ L<IO::Socket::SSL> is installed.
 =item * L<http://homakov.blogspot.jp/2013/03/oauth1-oauth2-oauth.html>
 
 =item * L<http://en.wikipedia.org/wiki/OAuth#OAuth_2.0>
+
+=item * L<https://openid.net/connect/>
 
 =back
 
@@ -272,6 +459,17 @@ values are configuration for each provider. Here is a complete example:
       secret        => "SECRET_KEY",
       authorize_url => "https://provider.example.com/auth",
       token_url     => "https://provider.example.com/token",
+    },
+  };
+
+For L<OpenID Connect|https://openid.net/connect/>, C<authorize_url> and C<token_url> are configured from the
+C<well_known_url> so these are replaced by the C<well_known_url> key.
+
+  plugin "OAuth2" => {
+    azure_ad => {
+      key            => "APP_ID",
+      secret         => "SECRET_KEY",
+      well_known_url => "https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration",
     },
   };
 
@@ -494,6 +692,27 @@ something like this:
     ...
   }
 
+=head2 oauth2.get_refresh_token_p
+
+  $promise = $c->oauth2->get_refresh_token_p($provider_name => \%args);
+
+When L<Mojolicious::Plugin::OAuth2> is being used in openid connect mode this helper allows for token refresh by
+submitting a C<refresh_token> specified in C<%args>. Usage is similar to L</"oauth2.get_token_p">.
+
+=head2 oauth2.jwt_decode
+
+When L<Mojolicious::Plugin::OAuth2> is being used in openid connect mode this helper allows you to decode the response
+data encoded with the JWKS discovered from C<well_known_url> configuration. This requires the optional dependencies
+L<Mojo::JWT>, L<Crypt::OpenSSL::RSA> and L<Crypt::OpenSSL::Bignum>.
+
+=head2 oauth2.logout_url
+
+  $url = $c->oauth2->logout_url($provider_name => \%args);
+
+When L<Mojolicious::Plugin::OAuth2> is being used in openid connect mode this helper creates the url to redirect to end
+the session. The OpenID Connect Provider will redirect to the C<post_logout_redirect_uri> provided in C<%args>.
+Additional keys for C<%args> are C<id_token_hint> and C<state>.
+
 =head1 ATTRIBUTES
 
 =head2 providers
@@ -517,3 +736,60 @@ Jan Henning Thorsen - C<jhthorsen@cpan.org>
 This software is licensed under the same terms as Perl itself.
 
 =cut
+
+__DATA__
+@@ oauth2/mock/configuration.json.ep
+{
+  "authorization_endpoint":"<%= $authorization_endpoint %>",
+  "claims_supported":["sub","iss","aud","exp","iat","auth_time","acr","nonce","name","ver","at_hash","c_hash","email"],
+  "end_session_endpoint":"<%= $end_session_endpoint %>",
+  "id_token_signing_alg_values_supported":["RS256"],
+  "issuer":"<%= $issuer %>",
+  "jwks_uri":"<%= $jwks_uri %>",
+  "request_uri_parameter_supported":0,
+  "response_modes_supported":["query","fragment","form_post"],
+  "response_types_supported":["code","id_token","code id_token","id_token token"],
+  "scopes_supported":["openid","profile","email","offline_access"],
+  "subject_types_supported":["pairwise"],
+  "token_endpoint":"<%= $token_endpoint %>",
+  "token_endpoint_auth_methods_supported":["client_secret_post","private_key_jwt","client_secret_basic"]
+}
+@@ oauth2/mock/keys.json.ep
+{
+  "keys":[{
+    "e":"<%= $e %>",
+    "issuer":"<%= $issuer %>",
+    "kid":"TEST_SIGNING_KEY",
+    "kty":"RSA",
+    "n":"<%= $n %>",
+    "use":"sig",
+    "x5c":"<%= $x5c %>",
+    "x5t":"TEST_SIGNING_KEY"
+  }]
+}
+@@ oauth2/mock/token.json.ep
+ {
+   "access_token":"access",
+   "expires_in":3599,
+   "ext_expires_in":3599,
+   "id_token":"<%= $id_token %>",
+   "refresh_token":"<%= $refresh_token %>",
+   "scope":"openid",
+   "token_type":"Bearer"
+}
+@@ oauth2/mock/form_post.html.ep
+<html><head><title>In progress...</title></head>
+<body>
+    <form method="POST" name="hiddenform" action="<%= $redirect_uri %>">
+        <input type="hidden" name="code" value="<%= $code %>"/>
+        <input type="hidden" name="state" value="<%= $state %>"/>
+        <noscript>
+            <p>Script is disabled. Click Submit to continue.</p>
+            <input type="submit" value="Submit"/>
+        </noscript>
+    </form>
+    <script language="javascript">
+    document.forms[0].submit();
+    </script>
+</body>
+</html>
