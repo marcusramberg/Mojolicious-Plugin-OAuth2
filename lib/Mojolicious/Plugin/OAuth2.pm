@@ -368,19 +368,17 @@ sub _warmup_openid {
 sub _warmup_openid_provider_p {
   my ($self, $provider, $well_known) = (shift, shift, shift);
   my $config = $self->providers->{$provider};
-  $self->_ua->get_p($well_known)->then(
-    sub {
-      my $tx  = shift;
-      my $res = $tx->result->json;
-      $config->{authorize_url}   = $res->{authorization_endpoint};
-      $config->{end_session_url} = $res->{end_session_endpoint};
-      $config->{token_url}       = $res->{token_endpoint};
-      $config->{userinfo_url}    = $res->{userinfo_endpoint};
-      $config->{issuer}          = $res->{issuer};
-      $config->{scope} //= 'openid';
-      $res;
-    }
-  )->then(sub { $self->_ua->get_p(shift->{jwks_uri}) })
+  $self->_ua->get_p($well_known)->then(sub {
+    my $tx  = shift;
+    my $res = $tx->result->json;
+    $config->{authorize_url}   = $res->{authorization_endpoint};
+    $config->{end_session_url} = $res->{end_session_endpoint};
+    $config->{token_url}       = $res->{token_endpoint};
+    $config->{userinfo_url}    = $res->{userinfo_endpoint};
+    $config->{issuer}          = $res->{issuer};
+    $config->{scope} //= 'openid';
+    $res;
+  })->then(sub { $self->_ua->get_p(shift->{jwks_uri}) })
     ->then(sub { $config->{jwt} = Mojo::JWT->new->add_jwkset(shift->result->json) })->catch(sub { warn @_; });
 }
 
