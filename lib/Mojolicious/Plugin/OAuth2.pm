@@ -89,8 +89,18 @@ sub register {
   $app->helper('oauth2.get_refresh_token_p' => sub { $self->_get_refresh_token($self->_args(@_), Mojo::Promise->new) });
   $app->helper('oauth2.logout_url'          => sub { $self->_get_logout_url($self->_args(@_)) });
 
-  $self->_mock_interface($app) if $providers->{mocked}{key};
-  $self->_warmup_openid($app)  if MOJO_JWT;
+  $self->_apply_mock($providers->{mocked}) if $providers->{mocked}{key};
+  $self->_warmup_openid($app)              if MOJO_JWT;
+}
+
+sub _apply_mock {
+  my ($self, $provider_args) = @_;
+
+  require Mojolicious::Plugin::OAuth2::Mock;
+  require Mojolicious;
+  my $app = $self->_ua->server->app || Mojolicious->new;
+  Mojolicious::Plugin::OAuth2::Mock->apply_to($app, $provider_args);
+  $self->_ua->server->app($app);
 }
 
 sub _args {
@@ -196,150 +206,6 @@ sub _parse_provider_response {
   return $tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!
     ? $tx->res->json
     : Mojo::Parameters->new($tx->res->body)->to_hash;
-}
-
-sub _mock_interface {
-  my ($self, $app) = @_;
-  my $provider_args = $self->providers->{mocked};
-
-  $self->_ua->server->app($app);
-  return $self->_mock_interface_oidc($app, $provider_args) if MOJO_JWT and $provider_args->{well_known_url};
-
-  $provider_args->{return_code}  ||= 'fake_code';
-  $provider_args->{return_token} ||= 'fake_token';
-
-  $app->routes->get(
-    $provider_args->{authorize_url} => sub {
-      my $c = shift;
-      if ($c->param('client_id') and $c->param('redirect_uri')) {
-        my $url = Mojo::URL->new($c->param('redirect_uri'));
-        $url->query->append(code => $provider_args->{return_code});
-        $c->render(text => $c->tag('a', href => $url, sub {'Connect'}));
-      }
-      else {
-        $c->render(text => "Invalid request\n", status => 400);
-      }
-    }
-  );
-
-  $app->routes->post(
-    $provider_args->{token_url} => sub {
-      my $c = shift;
-      if ($c->param('client_secret') and $c->param('redirect_uri') and $c->param('code')) {
-        my $qp = Mojo::Parameters->new(
-          access_token  => $provider_args->{return_token},
-          expires_in    => 3600,
-          refresh_token => Mojo::Util::md5_sum(rand),
-          scope         => $provider_args->{scopes} || 'some list of scopes',
-          token_type    => 'bearer',
-        );
-        $c->render(text => $qp->to_string);
-      }
-      else {
-        $c->render(status => 404, text => 'FAIL OVERFLOW');
-      }
-    }
-  );
-}
-
-sub _mock_interface_oidc {
-  my ($self, $app, $provider) = @_;
-  my $nb_url = $app->ua->server->nb_url;
-  my $rsa    = Crypt::OpenSSL::RSA->generate_key(2048);
-  my $known  = $provider->{well_known_url};
-  my $auth   = '/mocked/oauth2/authorize';
-  my $iss    = '/mocked/oauth2/v2.0';
-  my $jwks   = '/mocked/oauth2/keys';
-  my $logout = '/mocked/oauth2/logout';
-  my $token  = '/mocked/oauth2/token';
-  push @{$app->renderer->classes}, __PACKAGE__;
-  $app->routes->get(
-    $known => sub {
-      my $c = shift;
-      $c->render(
-        'oauth2/mock/configuration',
-        format                 => 'json',
-        authorization_endpoint => $nb_url->clone->tap(path => $auth),
-        end_session_endpoint   => $nb_url->clone->tap(path => $logout),
-        issuer                 => $nb_url->clone->tap(path => $iss),
-        jwks_uri               => $nb_url->clone->tap(path => $jwks),
-        token_endpoint         => $nb_url->clone->tap(path => $token)
-      );
-    }
-  );
-  $app->routes->get(
-    $jwks => sub {
-      my $c = shift;
-      my ($n, $e) = $rsa->get_key_parameters;
-      (my $x5c = $rsa->get_public_key_string) =~ s/\n/\\n/g;
-      require MIME::Base64;
-      return $c->render(
-        'oauth2/mock/keys',
-        format => 'json',
-        'n'    => MIME::Base64::encode_base64url($n->to_bin),
-        'e'    => MIME::Base64::encode_base64url($e->to_bin),
-        'x5c'  => $x5c,
-        issuer => $c->url_for($iss)->to_abs,
-      );
-    }
-  );
-
-  $app->routes->any(
-    $auth => sub {
-      my $c = shift;
-      return $c->render(
-        'oauth2/mock/form_post',
-        format       => 'html',
-        redirect_uri => $c->param('redirect_uri'),
-        code         => "authorize-code",
-        state        => $c->param('state')
-      ) if ($c->param('response_mode') eq 'form_post');
-
-      # $c->param('response_mode') eq 'query'
-      my $url = Mojo::URL->new($c->param('redirect_uri'));
-      $url->query({code => "authorize-code", state => $c->param('state')});
-      return $c->redirect_to($url);
-    }
-  );
-
-  $app->routes->any(
-    $token => sub {
-      my $c = shift;
-      return $c->render(json => {error => 'invalid_request'}, status => 500)
-        unless (($c->param('client_secret') and $c->param('redirect_uri') and $c->param('code'))
-        || ($c->param('grant_type') eq 'refresh_token' and $c->param('refresh_token')));
-      my $claims = {
-        aud                => $c->param('client_id'),
-        email              => 'foo.bar@example.com',
-        iss                => $c->url_for($iss)->to_abs,
-        name               => 'foo bar',
-        preferred_username => 'foo.bar@example.com',
-        sub                => 'foo.bar'
-      };
-      return $c->render(
-        'oauth2/mock/token',
-        format   => 'json',
-        id_token => Mojo::JWT->new(
-          algorithm => 'RS256',
-          secret    => $rsa->get_private_key_string,
-          set_iat   => 1,
-          claims    => $claims,
-          header    => {kid => 'TEST_SIGNING_KEY'}
-        )->expires(Mojo::JWT->now + 3600)->encode,
-        refresh_token => $c->param('refresh_token') // 'refresh-token',
-      );
-    }
-  );
-
-  $app->routes->any(
-    $logout => sub {
-      my $c      = shift;
-      my $rp_url = Mojo::URL->new($c->param('post_logout_redirect_uri'))
-        ->query({id_token_hint => $c->param('id_token_hint'), state => $c->param('state'),});
-      $c->redirect_to($rp_url);
-    }
-  );
-  return $self;
 }
 
 sub _token_url_transact {
@@ -742,60 +608,3 @@ Jan Henning Thorsen - C<jhthorsen@cpan.org>
 This software is licensed under the same terms as Perl itself.
 
 =cut
-
-__DATA__
-@@ oauth2/mock/configuration.json.ep
-{
-  "authorization_endpoint":"<%= $authorization_endpoint %>",
-  "claims_supported":["sub","iss","aud","exp","iat","auth_time","acr","nonce","name","ver","at_hash","c_hash","email"],
-  "end_session_endpoint":"<%= $end_session_endpoint %>",
-  "id_token_signing_alg_values_supported":["RS256"],
-  "issuer":"<%= $issuer %>",
-  "jwks_uri":"<%= $jwks_uri %>",
-  "request_uri_parameter_supported":0,
-  "response_modes_supported":["query","fragment","form_post"],
-  "response_types_supported":["code","id_token","code id_token","id_token token"],
-  "scopes_supported":["openid","profile","email","offline_access"],
-  "subject_types_supported":["pairwise"],
-  "token_endpoint":"<%= $token_endpoint %>",
-  "token_endpoint_auth_methods_supported":["client_secret_post","private_key_jwt","client_secret_basic"]
-}
-@@ oauth2/mock/keys.json.ep
-{
-  "keys":[{
-    "e":"<%= $e %>",
-    "issuer":"<%= $issuer %>",
-    "kid":"TEST_SIGNING_KEY",
-    "kty":"RSA",
-    "n":"<%= $n %>",
-    "use":"sig",
-    "x5c":"<%= $x5c %>",
-    "x5t":"TEST_SIGNING_KEY"
-  }]
-}
-@@ oauth2/mock/token.json.ep
- {
-   "access_token":"access",
-   "expires_in":3599,
-   "ext_expires_in":3599,
-   "id_token":"<%= $id_token %>",
-   "refresh_token":"<%= $refresh_token %>",
-   "scope":"openid",
-   "token_type":"Bearer"
-}
-@@ oauth2/mock/form_post.html.ep
-<html><head><title>In progress...</title></head>
-<body>
-    <form method="POST" name="hiddenform" action="<%= $redirect_uri %>">
-        <input type="hidden" name="code" value="<%= $code %>"/>
-        <input type="hidden" name="state" value="<%= $state %>"/>
-        <noscript>
-            <p>Script is disabled. Click Submit to continue.</p>
-            <input type="submit" value="Submit"/>
-        </noscript>
-    </form>
-    <script language="javascript">
-    document.forms[0].submit();
-    </script>
-</body>
-</html>

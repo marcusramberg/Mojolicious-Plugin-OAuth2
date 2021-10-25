@@ -29,20 +29,16 @@ any "/connect" => sub {
     }
   };
 
-  $c->oauth2->get_token_p(mocked => $get_token_args)->then(
-    sub {
-      return unless my $provider_res = shift;    # Redirect to IdP
-      $c->session(token => $provider_res->{access_token}, refresh_token => $provider_res->{refresh_token});
-      my $user = $c->oauth2->jwt_decode(mocked => data => $provider_res->{id_token});
-      $c->signed_cookie(id_token => $provider_res->{id_token});
-      return $c->redirect_to($c->param('state')) if $c->param('state') ne 'test';
-      $c->render(json => $user);
-    }
-  )->catch(
-    sub {
-      $c->render(text => "Error $_[0]", status => 500);
-    }
-  );
+  $c->oauth2->get_token_p(mocked => $get_token_args)->then(sub {
+    return unless my $provider_res = shift;    # Redirect to IdP
+    $c->session(token => $provider_res->{access_token}, refresh_token => $provider_res->{refresh_token});
+    my $user = $c->oauth2->jwt_decode(mocked => data => $provider_res->{id_token});
+    $c->signed_cookie(id_token => $provider_res->{id_token});
+    return $c->redirect_to($c->param('state')) if $c->param('state') ne 'test';
+    $c->render(json => $user);
+  })->catch(sub {
+    $c->render(text => "Error $_[0]", status => 500);
+  });
 };
 
 # exercise end_session_endpoint
@@ -65,13 +61,11 @@ get '/end_session' => sub {
 get '/refresh' => sub {
   my $c = shift;
   $c->render_later;
-  $c->oauth2->get_refresh_token_p(mocked => {refresh_token => $c->session('refresh_token') . "+"})->then(
-    sub {
-      my $res = shift;
-      $c->session(refresh_token => $res->{refresh_token});
-      $c->render(json => $res);
-    }
-  )->catch(sub { $c->render(text => "Error $_[0]", status => 500); });
+  $c->oauth2->get_refresh_token_p(mocked => {refresh_token => $c->session('refresh_token') . "+"})->then(sub {
+    my $res = shift;
+    $c->session(refresh_token => $res->{refresh_token});
+    $c->render(json => $res);
+  })->catch(sub { $c->render(text => "Error $_[0]", status => 500); });
 };
 
 group {
@@ -91,19 +85,13 @@ group {
 
 my $t = Test::Mojo->new;
 
-subtest 'Mock interface functionality' => sub {
+subtest 'warmup of provvider data' => sub {
   my $provider_conf = $t->app->oauth2->providers->{mocked};
-  ok $provider_conf->{jwt}, 'resolved from configuration';
-  $t->get_ok('/mocked/oauth2/.well-known/configuration')->status_is(200)
-    ->json_is('/authorization_endpoint', $provider_conf->{authorize_url}, 'Required')
-    ->json_is('/token_endpoint',         $provider_conf->{token_url},     'Required')
-    ->json_is('/issuer',                 $provider_conf->{issuer},        'OIDC valid (MUST)')
-    ->json_is('/userinfo_endpoint',      $provider_conf->{userinfo_url},  'Recommended')
-    ->json_has('/scopes_supported',                      'Recommended')->json_has('/jwks_uri', 'Required')
-    ->json_has('/response_types_supported',              'Required')->json_has('/subject_types_supported', 'Required')
-    ->json_has('/id_token_signing_alg_values_supported', 'Required');
-  $t->get_ok('/mocked/oauth2/keys')->status_is(200)->json_is('/keys/0/kid' => 'TEST_SIGNING_KEY')
-    ->json_has('/keys/0/n')->json_has('/keys/0/e');
+
+  is $provider_conf->{scope},        'openid', 'scope';
+  is $provider_conf->{userinfo_url}, undef,    'userinfo_url';
+  ok $provider_conf->{jwt},          'resolved from configuration';
+  ok +Mojo::URL->new($provider_conf->{$_})->scheme, $_ for qw(authorize_url end_session_url issuer token_url);
 };
 
 subtest 'Authorize and obtain token - form_post response_mode' => sub {
@@ -113,15 +101,13 @@ subtest 'Authorize and obtain token - form_post response_mode' => sub {
   is $location->query->param('response_mode'), 'form_post', 'response mode set';
 
   my ($action, $form);
-  $t->get_ok($location)->status_is(200)->tap(
-    sub {
-      my $dom = shift->tx->res->dom;
-      $action = $dom->at('form')->attr('action');
-      $form
-        = {code => $dom->at('input[name=code]')->attr('value'), state => $dom->at('input[name=state]')->attr('value')};
-      $t->test(is => Mojo::URL->new($action)->is_abs, 1, 'absolute url');
-    }
-  );
+  $t->get_ok($location)->status_is(200)->tap(sub {
+    my $dom = shift->tx->res->dom;
+    $action = $dom->at('form')->attr('action');
+    $form
+      = {code => $dom->at('input[name=code]')->attr('value'), state => $dom->at('input[name=state]')->attr('value')};
+    $t->test(is => Mojo::URL->new($action)->is_abs, 1, 'absolute url');
+  });
   $t->post_ok($action, form => $form)->status_is(200)->json_is('/aud' => 'c0e71b99-2c66-42e7-8589-6502153a7e3')
     ->json_is('/email' => 'foo.bar@example.com')
     ->json_is('/iss'   => $t->app->oauth2->providers->{mocked}{issuer}, 'OIDC valid (MUST)')
