@@ -17,6 +17,10 @@ has providers => sub {
       authorize_url => "https://api.dailymotion.com/oauth/authorize",
       token_url     => "https://api.dailymotion.com/oauth/token"
     },
+    debian_salsa => {
+      authorize_url => 'https://salsa.debian.org/oauth/authorize?response_type=code',
+      token_url     => 'https://salsa.debian.org/oauth/token',
+    },
     eventbrite => {
       authorize_url => 'https://www.eventbrite.com/oauth/authorize',
       token_url     => 'https://www.eventbrite.com/oauth/token',
@@ -481,6 +485,10 @@ values for C<authorize_url> and C<token_url> for the following providers:
 =item * dailymotion
 
 Authentication for Dailymotion video site.
+
+=item * debian_salsa
+
+Authentication for L<https://salsa.debian.org/>.
 
 =item * eventbrite
 
