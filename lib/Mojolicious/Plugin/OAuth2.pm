@@ -1,15 +1,15 @@
 package Mojolicious::Plugin::OAuth2;
 use Mojo::Base 'Mojolicious::Plugin';
 
+use Carp qw(croak);
 use Mojo::Promise;
 use Mojo::URL;
 use Mojo::UserAgent;
-use Carp 'croak';
-use strict;
 
 use constant MOJO_JWT => !!(eval { require Mojo::JWT; require Crypt::OpenSSL::RSA; require Crypt::OpenSSL::Bignum; 1 });
 
-our $VERSION = '1.59';
+our @CARP_NOT = qw(Mojolicious::Plugin::OAuth2 Mojolicious::Renderer);
+our $VERSION  = '1.59';
 
 has providers => sub {
   return {
@@ -52,43 +52,14 @@ sub register {
   my ($self, $app, $config) = @_;
   my $providers = $self->providers;
 
-  for my $provider (keys %$config) {
-    $providers->{$provider} ||= {};
-    for my $key (keys %{$config->{$provider}}) {
-      $providers->{$provider}{$key} = $config->{$provider}{$key};
-    }
-  }
+  $app->helper('oauth2.auth_url'            => sub { $self->_call(_auth_url            => @_) });
+  $app->helper('oauth2.get_refresh_token_p' => sub { $self->_call(_get_refresh_token_p => @_) });
+  $app->helper('oauth2.get_token_p'         => sub { $self->_call(_get_token_p         => @_) });
+  $app->helper('oauth2.jwt_decode'          => sub { $self->_call(_jwt_decode          => @_) });
+  $app->helper('oauth2.logout_url'          => sub { $self->_call(_logout_url          => @_) });
+  $app->helper('oauth2.providers'           => sub { $self->providers });
 
-  $app->helper('oauth2.auth_url'    => sub { $self->_get_authorize_url($self->_args(@_)) });
-  $app->helper('oauth2.providers'   => sub { $self->providers });
-  $app->helper('oauth2.get_token_p' => sub { $self->_get_token($self->_args(@_), Mojo::Promise->new) });
-  $app->helper(
-    'oauth2.get_token' => sub {
-      my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
-      my ($c, $args) = $self->_args(@_);
-
-      # Make sure we return Mojolicious::Controller and not Mojo::Promise
-      local $args->{return_controller} = 1;
-
-      # Blocking
-      return $self->_get_token($c, $args, undef) unless $cb;
-
-      # Non-blocking
-      my $p = Mojo::Promise->new;
-      $p->then(sub { $c->$cb('', shift) })->catch(sub { $c->$cb(shift, undef) });
-      return $self->_get_token($c, $args, $p);
-    }
-  );
-  $app->helper(
-    'oauth2.jwt_decode' => sub {
-      my $peek = ref $_[-1] eq 'CODE' ? pop : undef;
-      my ($c, $args) = $self->_args(@_);
-      return $self->providers->{$args->{provider}}{jwt}->decode($args->{data}, $peek);
-    }
-  );
-  $app->helper('oauth2.get_refresh_token_p' => sub { $self->_get_refresh_token($self->_args(@_), Mojo::Promise->new) });
-  $app->helper('oauth2.logout_url'          => sub { $self->_get_logout_url($self->_args(@_)) });
-
+  $self->_config_to_providers($config);
   $self->_apply_mock($providers->{mocked}) if $providers->{mocked}{key};
   $self->_warmup_openid($app)              if MOJO_JWT;
 }
@@ -103,15 +74,7 @@ sub _apply_mock {
   $self->_ua->server->app($app);
 }
 
-sub _args {
-  my ($self, $c, $provider) = (shift, shift, shift);
-  my $args = @_ % 2 ? shift : {@_};
-  $args->{provider} = $provider || 'unknown';
-  croak "Invalid OAuth2 provider: $args->{provider}" unless $self->providers->{$args->{provider}};
-  return $c, $args;
-}
-
-sub _get_authorize_url {
+sub _auth_url {
   my ($self, $c, $args) = @_;
   my $provider_args = $self->providers->{$args->{provider}};
   my $authorize_url;
@@ -127,7 +90,86 @@ sub _get_authorize_url {
   $authorize_url;
 }
 
-sub _get_logout_url {
+sub _call {
+  my ($self, $method, $c, $provider) = (shift, shift, shift, shift);
+  my $args = @_ % 2 ? shift : {@_};
+  $args->{provider} = $provider || 'unknown';
+  croak "Invalid provider: $args->{provider}" unless $self->providers->{$args->{provider}};
+  return $self->$method($c, $args);
+}
+
+sub _config_to_providers {
+  my ($self, $config) = @_;
+
+  for my $provider (keys %$config) {
+    my $p = $self->providers->{$provider} ||= {};
+    for my $key (keys %{$config->{$provider}}) {
+      $p->{$key} = $config->{$provider}{$key};
+    }
+  }
+}
+
+sub _get_refresh_token_p {
+  my ($self, $c, $args) = @_;
+
+  # TODO: Handle error response from oidc provider callback URL, if possible
+  my $err = $c->param('error_description') || $c->param('error');
+  return Mojo::Promise->reject($err) if $err;
+
+  my $provider_args = $self->providers->{$args->{provider}};
+  my $params        = {
+    client_id     => $provider_args->{key},
+    client_secret => $provider_args->{secret},
+    grant_type    => 'refresh_token',
+    refresh_token => $args->{refresh_token},
+    scope         => $provider_args->{scope},
+  };
+
+  my $token_url = Mojo::URL->new($provider_args->{token_url});
+  $token_url->host($args->{host}) if exists $args->{host};
+
+  return $self->_ua->post_p($token_url, form => $params)->then(sub { $self->_parse_provider_response(@_) });
+}
+
+sub _get_token_p {
+  my ($self, $c, $args) = @_;
+
+  # Handle error response from provider callback URL
+  my $err = $c->param('error_description') || $c->param('error');
+  return Mojo::Promise->reject($err) if $err;
+
+  # No error or code response from provider callback URL
+  unless ($c->param('code')) {
+    $c->redirect_to($self->_auth_url($c, $args)) if $args->{redirect} // 1;
+    return Mojo::Promise->resolve(undef);
+  }
+
+  # Handle "code" from provider callback
+  my $provider_args = $self->providers->{$args->{provider}};
+  my $params        = {
+    client_id     => $provider_args->{key},
+    client_secret => $provider_args->{secret},
+    code          => scalar($c->param('code')),
+    grant_type    => 'authorization_code',
+    redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
+  };
+
+  $params->{state} = $c->param('state') if $c->param('state');
+
+  my $token_url = Mojo::URL->new($provider_args->{token_url});
+  $token_url->host($args->{host}) if exists $args->{host};
+
+  return $self->_ua->post_p($token_url, form => $params)->then(sub { $self->_parse_provider_response(@_) });
+}
+
+sub _jwt_decode {
+  my $peek = ref $_[-1] eq 'CODE' && pop;
+  my ($self, $c, $args) = @_;
+  croak 'Provider does not have "jwt" defined.' unless my $jwt = $self->providers->{$args->{provider}}{jwt};
+  return $jwt->decode($args->{data}, $peek);
+}
+
+sub _logout_url {
   my ($self, $c, $args) = @_;
   return Mojo::URL->new($self->providers->{$args->{provider}}{end_session_url})->tap(
     query => {
@@ -138,86 +180,15 @@ sub _get_logout_url {
   );
 }
 
-sub _get_refresh_token {
-  my ($self, $c, $args, $p) = @_;
-
-  # Handle error response from oidc provider callback URL - TODO: is this possible?
-  if (my $err = $c->param('error_description') || $c->param('error')) {
-    die $err unless $p;    # die on blocking
-    $p->reject($err);
-    return $args->{return_controller} ? $c : $p;
-  }
-
-  my $provider_args = $self->providers->{$args->{provider}};
-  my $params        = {
-    client_secret => $provider_args->{secret},
-    client_id     => $provider_args->{key},
-    grant_type    => 'refresh_token',
-    refresh_token => $args->{refresh_token},
-    scope         => $provider_args->{scope},
-  };
-
-  my $token_url = Mojo::URL->new($provider_args->{token_url});
-  $token_url->host($args->{host}) if exists $args->{host};
-
-  return $self->_token_url_transact($token_url->to_abs, $params, $p, $args->{return_controller} ? $c : undef);
-}
-
-sub _get_token {
-  my ($self, $c, $args, $p) = @_;
-
-  # Handle error response from provider callback URL
-  if (my $err = $c->param('error_description') || $c->param('error')) {
-    die $err unless $p;    # die on blocking
-    $p->reject($err);
-    return $args->{return_controller} ? $c : $p;
-  }
-
-  # No error or code response from provider callback URL
-  unless ($c->param('code')) {
-    $c->redirect_to($self->_get_authorize_url($c, $args)) if $args->{redirect} // 1;
-    return $p ? $p->resolve(undef) : undef;
-  }
-
-  # Handle "code" from provider callback
-  my $provider_args = $self->providers->{$args->{provider}};
-  my $params        = {
-    client_secret => $provider_args->{secret},
-    client_id     => $provider_args->{key},
-    code          => scalar($c->param('code')),
-    grant_type    => 'authorization_code',
-    redirect_uri  => $args->{redirect_uri} || $c->url_for->to_abs->to_string,
-  };
-  $params->{state} = $c->param('state') if $c->param('state');
-
-  my $token_url = Mojo::URL->new($provider_args->{token_url});
-  $token_url->host($args->{host}) if exists $args->{host};
-
-  return $self->_token_url_transact($token_url->to_abs, $params, $p, $args->{return_controller} ? $c : undef);
-}
-
 sub _parse_provider_response {
   my ($self, $tx) = @_;
   my $code = $tx->res->code || 'No response';
 
   # Will cause the promise to be rejected
-  die sprintf '%s == %s', $tx->req->url, $tx->error->{message} // $code if $code ne '200';
-
+  return Mojo::Promise->reject(sprintf '%s == %s', $tx->req->url, $tx->error->{message} // $code) if $code ne '200';
   return $tx->res->headers->content_type =~ m!^(application/json|text/javascript)(;\s*charset=\S+)?$!
     ? $tx->res->json
     : Mojo::Parameters->new($tx->res->body)->to_hash;
-}
-
-sub _token_url_transact {
-  my ($self, $token_url, $params, $p, $c) = @_;
-  if ($p) {
-    $self->_ua->post_p($token_url, form => $params)->then(sub { $p->resolve($self->_parse_provider_response(@_)) })
-      ->catch(sub { $p->reject(@_); () });
-    return $c || $p;
-  }
-  else {
-    return $self->_parse_provider_response($self->_ua->post($token_url, form => $params));
-  }
 }
 
 sub _warmup_openid {
@@ -263,14 +234,19 @@ Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs including OpenID Connect
 =head1 DESCRIPTION
 
 This Mojolicious plugin allows you to easily authenticate against a
-L<OAuth2|http://oauth.net> provider. It includes configurations for a few
-popular providers, but you can add your own easily as well.
+L<OAuth2|http://oauth.net> or L<OpenID Connect|https://openid.net/connect/>
+provider. It includes configurations for a few popular providers, but you can
+add your own easily as well.
 
 Note that OAuth2 requires https, so you need to have the optional Mojolicious
 dependency required to support it. Run the command below to check if
 L<IO::Socket::SSL> is installed.
 
   $ mojo version
+
+In addition, the optional modules L<Crypt::OpenSSL::Bignum>,
+L<Crypt::OpenSSL::RSA> and L<Mojo::JWT> needs to be installed for OpenID
+Connect support.
 
 =head2 References
 
@@ -490,15 +466,11 @@ as a GET parameter called C<state> in the URL that the user will return to.
 
 =back
 
-=head2 oauth2.get_token
+=head2 oauth2.get_token_p
 
-  $data = $c->oauth2->get_token($provider_name => \%args);
-  $c    = $c->oauth2->get_token($provider_name => \%args, sub {
-            my ($c, $err, $data) = @_;
-            # do stuff with $data->{access_token} if it exists.
-          });
+  $promise = $c->oauth2->get_token_p($provider_name => \%args);
 
-L</oauth2.get_token> is used to either fetch access token from OAuth2 provider,
+L</oauth2.get_token_p> is used to either fetch access token from OAuth2 provider,
 handle errors or redirect to OAuth2 provider. This method can be called in either
 blocking or non-blocking mode. C<$err> holds a error description if something
 went wrong. Blocking mode will C<die($err)> instead of returning it to caller.
@@ -548,14 +520,9 @@ Scope to ask for credentials to. Should be a space separated list.
 
 =back
 
-=head2 oauth2.get_token_p
-
-  $promise = $c->oauth2->get_token_p($provider_name => \%args);
-
-Same as L</oauth2.get_token>, but returns a L<Mojo::Promise>. See L</SYNOPSIS>
-for example usage.
-
 =head2 oauth2.providers
+
+  $hash_ref = $c->oauth2->providers;
 
 This helper allow you to access the raw providers mapping, which looks
 something like this:
@@ -579,6 +546,9 @@ submitting a C<refresh_token> specified in C<%args>. Usage is similar to L</"oau
 
 =head2 oauth2.jwt_decode
 
+  $claims = $c->oauth2->jwt_decode($provider, sub { my $jwt = shift; ... });
+  $claims = $c->oauth2->jwt_decode($provider);
+
 When L<Mojolicious::Plugin::OAuth2> is being used in openid connect mode this helper allows you to decode the response
 data encoded with the JWKS discovered from C<well_known_url> configuration. This requires the optional dependencies
 L<Mojo::JWT>, L<Crypt::OpenSSL::RSA> and L<Crypt::OpenSSL::Bignum>.
@@ -594,6 +564,8 @@ Additional keys for C<%args> are C<id_token_hint> and C<state>.
 =head1 ATTRIBUTES
 
 =head2 providers
+
+  $hash_ref = $oauth2->providers;
 
 Holds a hash of provider information. See L</oauth2.providers>.
 

@@ -10,23 +10,19 @@ use Test::More;
   get '/no-redirect' => sub {
     my $c = shift;
 
-    $c->oauth2->get_token_p('mocked', {redirect => 0})->then(
-      sub {
-        return $c->render(text => 'No token') unless my $provider_res = shift;    # Redirect
-        return $c->render(text => "Token $provider_res->{access_token}");
-      }
-    )->catch(sub { $c->reply->exception(shift) });
+    return $c->oauth2->get_token_p('mocked', {redirect => 0})->then(sub {
+      return $c->render(text => 'No token') unless my $provider_res = shift;    # Redirect
+      return $c->render(text => "Token $provider_res->{access_token}");
+    });
   };
 
   get '/profile' => sub {
     my $c = shift;
 
-    $c->oauth2->get_token_p('mocked')->then(
-      sub {
-        return unless my $provider_res = shift;                                   # Redirect
-        return $c->render(text => "Token $provider_res->{access_token}");
-      }
-    )->catch(sub { $c->reply->exception(shift) });
+    return $c->oauth2->get_token_p('mocked')->then(sub {
+      return unless my $provider_res = shift;                                   # Redirect
+      return $c->render(text => "Token $provider_res->{access_token}");
+    });
   };
 }
 

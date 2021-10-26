@@ -10,11 +10,20 @@ $app->routes->get(
   '/oauth-delayed' => sub {
     my $c = shift;
 
-    $c->oauth2->get_token(test => sub {
-      my (undef, $err, $provider_res) = @_;
-      return $c->render(text => $err) unless $provider_res;
-      return $c->render(text => "Token $provider_res->{access_token}");
-    });
+    $c->oauth2->get_token(
+      test => sub {
+        my (undef, $err, $provider_res) = @_;
+        return $c->render(text => $err) unless $provider_res;
+        return $c->render(text => "Token $provider_res->{access_token}");
+      }
+    );
+  }
+);
+
+$app->helper(
+  'oauth2.get_token' => sub {
+    my ($c, $args, $cb) = @_;
+    $c->oauth2->get_token_p($args)->then(sub { $c->$cb('', shift) }, sub { $c->$cb(shift, {}) },);
   }
 );
 

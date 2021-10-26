@@ -11,7 +11,7 @@ get '/test123', sub { $_[0]->render(text => $_[0]->oauth2->auth_url('facebook', 
 my $t = Test::Mojo->new;
 
 eval { $t->app->oauth2->auth_url };
-like $@, qr{Invalid OAuth2 provider}, 'provider_id is required';
+like $@, qr{Invalid provider}, 'provider_id is required';
 
 $t->get_ok('/test123')->status_is(200);
 my $url = Mojo::URL->new($t->tx->res->body);
