@@ -52,7 +52,7 @@ sub register {
   my ($self, $app, $config) = @_;
   my $providers = $self->providers;
 
-  foreach my $provider (keys %$config) {
+  for my $provider (keys %$config) {
     $providers->{$provider} ||= {};
     for my $key (keys %{$config->{$provider}}) {
       $providers->{$provider}{$key} = $config->{$provider}{$key};
@@ -222,30 +222,36 @@ sub _token_url_transact {
 
 sub _warmup_openid {
   my ($self, $app) = (shift, shift);
-  my $providers = $self->providers;
-  for my $provider (keys %$providers) {
-    next unless my $well_known = $providers->{$provider}->{well_known_url};
-    $app->log->debug("Fetching OpenID configuration from $well_known");
-    $self->_warmup_openid_provider_p($provider, $well_known)->catch(sub { $app->log->error(shift) })->wait;
+
+  my ($providers, @p) = ($self->providers);
+  for my $provider (values %$providers) {
+    next unless $provider->{well_known_url};
+    $app->log->debug("Fetching OpenID configuration from $provider->{well_known_url}");
+    push @p, $self->_warmup_openid_provider_p($provider);
   }
-  return $self;
+
+  return @p && Mojo::Promise->all(@p)->catch(sub { $app->log->error(shift) })->wait;
 }
 
 sub _warmup_openid_provider_p {
-  my ($self, $provider, $well_known) = (shift, shift, shift);
-  my $config = $self->providers->{$provider};
-  $self->_ua->get_p($well_known)->then(sub {
+  my ($self, $provider) = @_;
+
+  return $self->_ua->get_p($provider->{well_known_url})->then(sub {
     my $tx  = shift;
     my $res = $tx->result->json;
-    $config->{authorize_url}   = $res->{authorization_endpoint};
-    $config->{end_session_url} = $res->{end_session_endpoint};
-    $config->{token_url}       = $res->{token_endpoint};
-    $config->{userinfo_url}    = $res->{userinfo_endpoint};
-    $config->{issuer}          = $res->{issuer};
-    $config->{scope} //= 'openid';
-    $res;
-  })->then(sub { $self->_ua->get_p(shift->{jwks_uri}) })
-    ->then(sub { $config->{jwt} = Mojo::JWT->new->add_jwkset(shift->result->json) })->catch(sub { warn @_; });
+    $provider->{authorize_url}   = $res->{authorization_endpoint};
+    $provider->{end_session_url} = $res->{end_session_endpoint};
+    $provider->{issuer}          = $res->{issuer};
+    $provider->{token_url}       = $res->{token_endpoint};
+    $provider->{userinfo_url}    = $res->{userinfo_endpoint};
+    $provider->{scope} //= 'openid';
+
+    return $self->_ua->get_p($res->{jwks_uri});
+  })->then(sub {
+    my $tx = shift;
+    $provider->{jwt} = Mojo::JWT->new->add_jwkset($tx->result->json);
+    return $provider;
+  });
 }
 
 1;
