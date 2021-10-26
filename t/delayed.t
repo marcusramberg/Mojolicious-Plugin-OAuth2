@@ -23,7 +23,7 @@ $app->routes->get(
 $app->helper(
   'oauth2.get_token' => sub {
     my ($c, $args, $cb) = @_;
-    $c->oauth2->get_token_p($args)->then(sub { $c->$cb('', shift) }, sub { $c->$cb(shift, {}) },);
+    $c->oauth2->get_token_p($args)->then(sub { $c->$cb('', shift) }, sub { $c->$cb(shift, {}) });
   }
 );
 
