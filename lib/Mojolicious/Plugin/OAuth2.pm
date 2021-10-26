@@ -14,8 +14,8 @@ our $VERSION = '1.59';
 has providers => sub {
   return {
     dailymotion => {
-      authorize_url => "https://api.dailymotion.com/oauth/authorize",
-      token_url     => "https://api.dailymotion.com/oauth/token"
+      authorize_url => 'https://api.dailymotion.com/oauth/authorize',
+      token_url     => 'https://api.dailymotion.com/oauth/token'
     },
     debian_salsa => {
       authorize_url => 'https://salsa.debian.org/oauth/authorize?response_type=code',
@@ -26,22 +26,22 @@ has providers => sub {
       token_url     => 'https://www.eventbrite.com/oauth/token',
     },
     facebook => {
-      authorize_url => "https://graph.facebook.com/oauth/authorize",
-      token_url     => "https://graph.facebook.com/oauth/access_token",
+      authorize_url => 'https://graph.facebook.com/oauth/authorize',
+      token_url     => 'https://graph.facebook.com/oauth/access_token',
     },
     instagram => {
-      authorize_url => "https://api.instagram.com/oauth/authorize/?response_type=code",
-      token_url     => "https://api.instagram.com/oauth/access_token",
+      authorize_url => 'https://api.instagram.com/oauth/authorize/?response_type=code',
+      token_url     => 'https://api.instagram.com/oauth/access_token',
     },
     github => {
       authorize_url => 'https://github.com/login/oauth/authorize',
       token_url     => 'https://github.com/login/oauth/access_token',
     },
     google => {
-      authorize_url => "https://accounts.google.com/o/oauth2/v2/auth?response_type=code",
-      token_url     => "https://www.googleapis.com/oauth2/v4/token",
+      authorize_url => 'https://accounts.google.com/o/oauth2/v2/auth?response_type=code',
+      token_url     => 'https://www.googleapis.com/oauth2/v4/token',
     },
-    vkontakte => {authorize_url => "https://oauth.vk.com/authorize", token_url => "https://oauth.vk.com/access_token",},
+    vkontakte => {authorize_url => 'https://oauth.vk.com/authorize', token_url => 'https://oauth.vk.com/access_token',},
     mocked => {authorize_url => '/mocked/oauth/authorize', token_url => '/mocked/oauth/token', secret => 'fake_secret'},
   };
 };
@@ -398,7 +398,7 @@ Note that OAuth2 requires https, so you need to have the optional Mojolicious
 dependency required to support it. Run the command below to check if
 L<IO::Socket::SSL> is installed.
 
-   $ mojo version
+  $ mojo version
 
 =head2 References
 
@@ -422,23 +422,23 @@ L<IO::Socket::SSL> is installed.
 
   use Mojolicious::Lite;
 
-  plugin "OAuth2" => {
+  plugin 'OAuth2' => {
     facebook => {
-      key    => "some-public-app-id",
+      key    => 'some-public-app-id',
       secret => $ENV{OAUTH2_FACEBOOK_SECRET},
     },
   };
 
-  get "/connect" => sub {
+  get '/connect' => sub {
     my $c = shift;
-    my $get_token_args = {redirect_uri => $c->url_for("connect")->userinfo(undef)->to_abs};
+    my $get_token_args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
 
     $c->oauth2->get_token_p(facebook => $get_token_args)->then(sub {
       return unless my $provider_res = shift; # Redirct to Facebook
       $c->session(token => $provider_res->{access_token});
-      $c->redirect_to("profile");
+      $c->redirect_to('profile');
     })->catch(sub {
-      $c->render("connect", error => shift);
+      $c->render('connect', error => shift);
     });
   };
 
@@ -448,30 +448,30 @@ You can add a "connect link" to your template using the L</oauth2.auth_url>
 helper. Example template:
 
   Click here to log in:
-  <%= link_to "Connect!", $c->oauth2->auth_url("facebook", scope => "user_about_me email") %>
+  <%= link_to 'Connect!', $c->oauth2->auth_url('facebook', scope => 'user_about_me email') %>
 
 =head2 Configuration
 
 This plugin takes a hash as config, where the keys are provider names and the
 values are configuration for each provider. Here is a complete example:
 
-  plugin "OAuth2" => {
+  plugin 'OAuth2' => {
     custom_provider => {
-      key           => "APP_ID",
-      secret        => "SECRET_KEY",
-      authorize_url => "https://provider.example.com/auth",
-      token_url     => "https://provider.example.com/token",
+      key           => 'APP_ID',
+      secret        => 'SECRET_KEY',
+      authorize_url => 'https://provider.example.com/auth',
+      token_url     => 'https://provider.example.com/token',
     },
   };
 
 For L<OpenID Connect|https://openid.net/connect/>, C<authorize_url> and C<token_url> are configured from the
 C<well_known_url> so these are replaced by the C<well_known_url> key.
 
-  plugin "OAuth2" => {
+  plugin 'OAuth2' => {
     azure_ad => {
-      key            => "APP_ID",
-      secret         => "SECRET_KEY",
-      well_known_url => "https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration",
+      key            => 'APP_ID',
+      secret         => 'SECRET_KEY',
+      well_known_url => 'https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration',
     },
   };
 
@@ -540,7 +540,7 @@ THIS API IS EXPERIMENTAL AND CAN CHANGE WITHOUT NOTICE.
 To enable a "mocked" OAuth2 api, you need to give the special "mocked"
 provider a "key":
 
-  plugin "OAuth2" => { mocked => {key => 42} };
+  plugin 'OAuth2' => {mocked => {key => 42}};
 
 The code above will add two new routes to your application:
 
@@ -552,11 +552,11 @@ This route is a web page which contains a link that takes you back to
 "redirect_uri", with a "code". The "code" default to "fake_code", but
 can be configured:
 
-  $c->app->oauth2->providers->{mocked}{return_code} = "...";
+  $c->app->oauth2->providers->{mocked}{return_code} = '...';
 
 The route it self can also be customized:
 
-  plugin "OAuth2" => { mocked => {authorize_url => '...'} };
+  plugin 'OAuth2' => {mocked => {authorize_url => '...'}};
 
 =item * POST /mocked/oauth/token
 
@@ -564,11 +564,11 @@ This route is will return a "access_token" which is available in your
 L</oauth2.get_token> callback. The default is "fake_token", but it can
 be configured:
 
-  $c->app->oauth2->providers->{mocked}{return_token} = "...";
+  $c->app->oauth2->providers->{mocked}{return_token} = '...';
 
 The route it self can also be customized:
 
-  plugin "OAuth2" => { mocked => {token_url => '...'} };
+  plugin 'OAuth2' => {mocked => {token_url => '...'}};
 
 =back
 
