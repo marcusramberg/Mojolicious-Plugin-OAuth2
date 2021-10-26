@@ -1,5 +1,13 @@
 Revision history for perl distribution Mojolicious-Plugin-OAuth2
 
+2.00 Not Released
+ - Removed $c->oauth2->get_token()
+ - Add support for "OpenID Connect" #65
+   Contributor: Roy Storey
+ - Add "debian_salsa" as an OAuth2 id provider #62
+   Contributor: Gregor Herrmann
+ - Moved mock code to Mojolicious::Plugin::OAuth2::Mock
+
 1.59 2021-02-17T08:33:17+0900
  - Fix invalid "=item" in documentation.
  - Compatible with Mojolicious 9.0 #61
