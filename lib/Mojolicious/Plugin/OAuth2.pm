@@ -231,46 +231,13 @@ sub _warmup_openid_provider_p {
 
 Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs including OpenID Connect
 
-=head1 DESCRIPTION
-
-This Mojolicious plugin allows you to easily authenticate against a
-L<OAuth2|http://oauth.net> or L<OpenID Connect|https://openid.net/connect/>
-provider. It includes configurations for a few popular providers, but you can
-add your own easily as well.
-
-Note that OAuth2 requires https, so you need to have the optional Mojolicious
-dependency required to support it. Run the command below to check if
-L<IO::Socket::SSL> is installed.
-
-  $ mojo version
-
-In addition, the optional modules L<Crypt::OpenSSL::Bignum>,
-L<Crypt::OpenSSL::RSA> and L<Mojo::JWT> needs to be installed for OpenID
-Connect support.
-
-=head2 References
-
-=over 4
-
-=item * L<http://oauth.net/documentation/>
-
-=item * L<http://aaronparecki.com/articles/2012/07/29/1/oauth2-simplified>
-
-=item * L<http://homakov.blogspot.jp/2013/03/oauth1-oauth2-oauth.html>
-
-=item * L<http://en.wikipedia.org/wiki/OAuth#OAuth_2.0>
-
-=item * L<https://openid.net/connect/>
-
-=back
-
 =head1 SYNOPSIS
 
-=head2 Example non-blocking application
+=head2 Example application
 
   use Mojolicious::Lite;
 
-  plugin 'OAuth2' => {
+  plugin OAuth2 => {
     facebook => {
       key    => 'some-public-app-id',
       secret => $ENV{OAUTH2_FACEBOOK_SECRET},
@@ -278,11 +245,14 @@ Connect support.
   };
 
   get '/connect' => sub {
-    my $c = shift;
-    my $get_token_args = {redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs};
+    my $c         = shift;
+    my %get_token = (redirect_uri => $c->url_for('connect')->userinfo(undef)->to_abs);
 
-    $c->oauth2->get_token_p(facebook => $get_token_args)->then(sub {
-      return unless my $provider_res = shift; # Redirct to Facebook
+    return $c->oauth2->get_token_p(facebook => \%get_token)->then(sub {
+      # Redirected to Facebook
+      return unless my $provider_res = shift;
+
+      # Token received
       $c->session(token => $provider_res->{access_token});
       $c->redirect_to('profile');
     })->catch(sub {
@@ -290,7 +260,26 @@ Connect support.
     });
   };
 
-=head2 Custom connect button
+See L</register> for more details about the configuration this plugin takes.
+
+=head2 Testing
+
+Code using this plugin can perform offline testing, using the "mocked"
+provider:
+
+  $app->plugin(OAuth2 => {mocked => {key => 42}});
+  $app->routes->get('/profile' => sub {
+    my $c = shift;
+
+    state $mocked = $ENV{TEST_MOCKED} && 'mocked';
+    return $c->oauth2->get_token_p($mocked || 'facebook')->then(sub {
+      ...
+    });
+  });
+
+See L<Mojolicious::Plugin::OAuth2::Mock> for more details.
+
+=head2 Connect button
 
 You can add a "connect link" to your template using the L</oauth2.auth_url>
 helper. Example template:
@@ -298,140 +287,33 @@ helper. Example template:
   Click here to log in:
   <%= link_to 'Connect!', $c->oauth2->auth_url('facebook', scope => 'user_about_me email') %>
 
-=head2 Configuration
+=head1 DESCRIPTION
 
-This plugin takes a hash as config, where the keys are provider names and the
-values are configuration for each provider. Here is a complete example:
+This Mojolicious plugin allows you to easily authenticate against a
+L<OAuth2|http://oauth.net> or L<OpenID Connect|https://openid.net/connect/>
+provider. It includes configurations for a few popular L<providers|/register>,
+but you can add your own as well.
 
-  plugin 'OAuth2' => {
-    custom_provider => {
-      key           => 'APP_ID',
-      secret        => 'SECRET_KEY',
-      authorize_url => 'https://provider.example.com/auth',
-      token_url     => 'https://provider.example.com/token',
-    },
-  };
+See L</register> for a full list of bundled providers.
 
-For L<OpenID Connect|https://openid.net/connect/>, C<authorize_url> and C<token_url> are configured from the
-C<well_known_url> so these are replaced by the C<well_known_url> key.
+To support "OpenID Connect", the following optional modules must be installed
+manually: L<Crypt::OpenSSL::Bignum>, L<Crypt::OpenSSL::RSA> and L<Mojo::JWT>.
+The modules can be installed with L<App::cpanminus>:
 
-  plugin 'OAuth2' => {
-    azure_ad => {
-      key            => 'APP_ID',
-      secret         => 'SECRET_KEY',
-      well_known_url => 'https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration',
-    },
-  };
-
-To make it a bit easier, L<Mojolicious::Plugin::OAuth2> has already
-values for C<authorize_url> and C<token_url> for the following providers:
-
-=over 4
-
-=item * dailymotion
-
-Authentication for Dailymotion video site.
-
-=item * debian_salsa
-
-Authentication for L<https://salsa.debian.org/>.
-
-=item * eventbrite
-
-Authentication for L<https://www.eventbrite.com> event site.
-
-See also L<http://developer.eventbrite.com/docs/auth/>.
-
-=item * facebook
-
-OAuth2 for Facebook's graph API, L<http://graph.facebook.com/>. You can find
-C<key> (App ID) and C<secret> (App Secret) from the app dashboard here:
-L<https://developers.facebook.com/apps>.
-
-See also L<https://developers.facebook.com/docs/reference/dialogs/oauth/>.
-
-=item * instagram
-
-OAuth2 for Instagram API. You can find C<key> (Client ID) and
-C<secret> (Client Secret) from the app dashboard here:
-L<https://www.instagram.com/developer/clients/manage/>.
-
-See also L<https://www.instagram.com/developer/authentication/>.
-
-=item * github
-
-Authentication with Github.
-
-See also L<https://developer.github.com/v3/oauth/>.
-
-=item * google
-
-OAuth2 for Google. You can find the C<key> (CLIENT ID) and C<secret>
-(CLIENT SECRET) from the app console here under "APIs & Auth" and
-"Credentials" in the menu at L<https://console.developers.google.com/project>.
-
-See also L<https://developers.google.com/+/quickstart/>.
-
-=item * vkontakte
-
-OAuth2 for Vkontakte. You can find C<key> (App ID) and C<secret>
-(Secure key) from the app dashboard here: L<https://vk.com/apps?act=manage>.
-
-See also L<https://vk.com/dev/authcode_flow_user>.
-
-=back
-
-=head2 Testing
-
-THIS API IS EXPERIMENTAL AND CAN CHANGE WITHOUT NOTICE.
-
-To enable a "mocked" OAuth2 api, you need to give the special "mocked"
-provider a "key":
-
-  plugin 'OAuth2' => {mocked => {key => 42}};
-
-The code above will add two new routes to your application:
-
-=over 4
-
-=item * GET /mocked/oauth/authorize
-
-This route is a web page which contains a link that takes you back to
-"redirect_uri", with a "code". The "code" default to "fake_code", but
-can be configured:
-
-  $c->app->oauth2->providers->{mocked}{return_code} = '...';
-
-The route it self can also be customized:
-
-  plugin 'OAuth2' => {mocked => {authorize_url => '...'}};
-
-=item * POST /mocked/oauth/token
-
-This route is will return a "access_token" which is available in your
-L</oauth2.get_token> callback. The default is "fake_token", but it can
-be configured:
-
-  $c->app->oauth2->providers->{mocked}{return_token} = '...';
-
-The route it self can also be customized:
-
-  plugin 'OAuth2' => {mocked => {token_url => '...'}};
-
-=back
+  $ cpanm Crypt::OpenSSL::Bignum Crypt::OpenSSL::RSA Mojo::JWT
 
 =head1 HELPERS
 
 =head2 oauth2.auth_url
 
-  $url = $c->oauth2->auth_url($provider => \%args);
+  $url = $c->oauth2->auth_url($provider_name => \%args);
 
 Returns a L<Mojo::URL> object which contain the authorize URL. This is
 useful if you want to add the authorize URL as a link to your webpage
 instead of doing a redirect like L</oauth2.get_token> does. C<%args> is optional,
 but can contain:
 
-=over 4
+=over 2
 
 =item * host
 
@@ -466,34 +348,43 @@ as a GET parameter called C<state> in the URL that the user will return to.
 
 =back
 
+=head2 oauth2.get_refresh_token_p
+
+  $promise = $c->oauth2->get_refresh_token_p($provider_name => \%args);
+
+When L<Mojolicious::Plugin::OAuth2> is being used in OpenID Connect mode this
+helper allows for a token to be refreshed by specifying a C<refresh_token> in
+C<%args>. Usage is similar to L</"oauth2.get_token_p">.
+
 =head2 oauth2.get_token_p
 
-  $promise = $c->oauth2->get_token_p($provider_name => \%args);
+  $promise = $c->oauth2->get_token_p($provider_name => \%args)
+               ->then(sub { my $provider_res = shift })
+               ->catch(sub { my $err = shift; });
 
-L</oauth2.get_token_p> is used to either fetch access token from OAuth2 provider,
-handle errors or redirect to OAuth2 provider. This method can be called in either
-blocking or non-blocking mode. C<$err> holds a error description if something
-went wrong. Blocking mode will C<die($err)> instead of returning it to caller.
-C<$data> is a hash-ref containing the access token from the OAauth2 provider.
-C<$data> in blocking mode can also be C<undef> if a redirect has been issued
-by this module.
+L</oauth2.get_token_p> is used to either fetch an access token from an OAuth2
+provider, handle errors or redirect to OAuth2 provider.  C<$err> in the
+rejection handler holds a error description if something went wrong.
+C<$provider_res> is a hash-ref containing the access token from the OAauth2
+provider or C<undef> if this plugin performed a 302 redirect to the provider's
+connect website.
 
 In more detail, this method will do one of two things:
 
-=over 4
+=over 2
 
 =item 1.
 
-If called from an action on your site, it will redirect you to the
-C<$provider_name>'s C<authorize_url>. This site will probably have some
-sort of "Connect" and "Reject" button, allowing the visitor to either
-connect your site with his/her profile on the OAuth2 provider's page or not.
+When called from an action on your site, it will redirect you to the provider's
+C<authorize_url>. This site will probably have some sort of "Connect" and
+"Reject" button, allowing the visitor to either connect your site with his/her
+profile on the OAuth2 provider's page or not.
 
 =item 2.
 
 The OAuth2 provider will redirect the user back to your site after clicking the
-"Connect" or "Reject" button. C<$data> will then contain a key "access_token"
-on "Connect" and a false value (or die in blocking mode) on "Reject".
+"Connect" or "Reject" button. C<$provider_res> will then contain a key
+"access_token" on "Connect" and a false value on "Reject".
 
 =back
 
@@ -503,7 +394,7 @@ when L<registering|/SYNOPSIS> the plugin.
 
 C<%args> can have:
 
-=over 4
+=over 2
 
 =item * host
 
@@ -519,6 +410,24 @@ Set C<redirect> to 0 to disable automatic redirect.
 Scope to ask for credentials to. Should be a space separated list.
 
 =back
+
+=head2 oauth2.jwt_decode
+
+  $claims = $c->oauth2->jwt_decode($provider, sub { my $jwt = shift; ... });
+  $claims = $c->oauth2->jwt_decode($provider);
+
+When L<Mojolicious::Plugin::OAuth2> is being used in OpenID Connect mode this
+helper allows you to decode the response data encoded with the JWKS discovered
+from C<well_known_url> configuration.
+
+=head2 oauth2.logout_url
+
+  $url = $c->oauth2->logout_url($provider_name => \%args);
+
+When L<Mojolicious::Plugin::OAuth2> is being used in OpenID Connect mode this
+helper creates the url to redirect to end the session. The OpenID Connect
+Provider will redirect to the C<post_logout_redirect_uri> provided in C<%args>.
+Additional keys for C<%args> are C<id_token_hint> and C<state>.
 
 =head2 oauth2.providers
 
@@ -537,30 +446,6 @@ something like this:
     ...
   }
 
-=head2 oauth2.get_refresh_token_p
-
-  $promise = $c->oauth2->get_refresh_token_p($provider_name => \%args);
-
-When L<Mojolicious::Plugin::OAuth2> is being used in openid connect mode this helper allows for token refresh by
-submitting a C<refresh_token> specified in C<%args>. Usage is similar to L</"oauth2.get_token_p">.
-
-=head2 oauth2.jwt_decode
-
-  $claims = $c->oauth2->jwt_decode($provider, sub { my $jwt = shift; ... });
-  $claims = $c->oauth2->jwt_decode($provider);
-
-When L<Mojolicious::Plugin::OAuth2> is being used in openid connect mode this helper allows you to decode the response
-data encoded with the JWKS discovered from C<well_known_url> configuration. This requires the optional dependencies
-L<Mojo::JWT>, L<Crypt::OpenSSL::RSA> and L<Crypt::OpenSSL::Bignum>.
-
-=head2 oauth2.logout_url
-
-  $url = $c->oauth2->logout_url($provider_name => \%args);
-
-When L<Mojolicious::Plugin::OAuth2> is being used in openid connect mode this helper creates the url to redirect to end
-the session. The OpenID Connect Provider will redirect to the C<post_logout_redirect_uri> provided in C<%args>.
-Additional keys for C<%args> are C<id_token_hint> and C<state>.
-
 =head1 ATTRIBUTES
 
 =head2 providers
@@ -573,7 +458,92 @@ Holds a hash of provider information. See L</oauth2.providers>.
 
 =head2 register
 
-Will register this plugin in your application. See L</SYNOPSIS>.
+  $app->plugin(OAuth2 => \%provider_config);
+
+Will register this plugin in your application with a given C<%provider_config>.
+The keys in C<%provider_config> are provider names and the values are
+configuration for each provider. Note that the value will be merged with the
+predefined providers below.
+
+Here is an example to add adddition information like "key" and "secret":
+
+  $app->plugin(OAuth2 => {
+    custom_provider => {
+      key           => 'APP_ID',
+      secret        => 'SECRET_KEY',
+      authorize_url => 'https://provider.example.com/auth',
+      token_url     => 'https://provider.example.com/token',
+    },
+    github => {
+      key    => 'APP_ID',
+      secret => 'SECRET_KEY',
+    },
+  });
+
+For L<OpenID Connect|https://openid.net/connect/>, C<authorize_url> and C<token_url> are configured from the
+C<well_known_url> so these are replaced by the C<well_known_url> key.
+
+  $app->plugin(OAuth2 => {
+    azure_ad => {
+      key            => 'APP_ID',
+      secret         => 'SECRET_KEY',
+      well_known_url => 'https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration',
+    },
+  });
+
+To make it a bit easier the are already some predefined providers bundled with
+this plugin:
+
+=head3 dailymotion
+
+Authentication for L<https://www.dailymotion.com/> video site.
+
+=head3 debian_salsa
+
+Authentication for L<https://salsa.debian.org/>.
+
+=head3 eventbrite
+
+Authentication for L<https://www.eventbrite.com> event site.
+
+See also L<http://developer.eventbrite.com/docs/auth/>.
+
+=head3 facebook
+
+OAuth2 for Facebook's graph API, L<http://graph.facebook.com/>. You can find
+C<key> (App ID) and C<secret> (App Secret) from the app dashboard here:
+L<https://developers.facebook.com/apps>.
+
+See also L<https://developers.facebook.com/docs/reference/dialogs/oauth/>.
+
+=head3 instagram
+
+OAuth2 for Instagram API. You can find C<key> (Client ID) and
+C<secret> (Client Secret) from the app dashboard here:
+L<https://www.instagram.com/developer/clients/manage/>.
+
+See also L<https://www.instagram.com/developer/authentication/>.
+
+=head3 github
+
+Authentication with Github.
+
+See also L<https://developer.github.com/v3/oauth/>.
+
+=head3 google
+
+OAuth2 for Google. You can find the C<key> (CLIENT ID) and C<secret>
+(CLIENT SECRET) from the app console here under "APIs & Auth" and
+"Credentials" in the menu at L<https://console.developers.google.com/project>.
+
+See also L<https://developers.google.com/+/quickstart/>.
+
+=head3 vkontakte
+
+OAuth2 for Vkontakte. You can find C<key> (App ID) and C<secret>
+(Secure key) from the app dashboard here: L<https://vk.com/apps?act=manage>.
+
+See also L<https://vk.com/dev/authcode_flow_user>.
 
 =head1 AUTHOR
 
@@ -584,5 +554,21 @@ Jan Henning Thorsen - C<jhthorsen@cpan.org>
 =head1 LICENSE
 
 This software is licensed under the same terms as Perl itself.
+
+=head1 SEE ALSO
+
+=over 2
+
+=item * L<http://oauth.net/documentation/>
+
+=item * L<http://aaronparecki.com/articles/2012/07/29/1/oauth2-simplified>
+
+=item * L<http://homakov.blogspot.jp/2013/03/oauth1-oauth2-oauth.html>
+
+=item * L<http://en.wikipedia.org/wiki/OAuth#OAuth_2.0>
+
+=item * L<https://openid.net/connect/>
+
+=back
 
 =cut
