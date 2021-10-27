@@ -61,7 +61,7 @@ sub register {
 
   $self->_config_to_providers($config);
   $self->_apply_mock($providers->{mocked}) if $providers->{mocked}{key};
-  $self->_warmup_openid($app)              if MOJO_JWT;
+  $self->_warmup_openid($app);
 }
 
 sub _apply_mock {
@@ -198,14 +198,14 @@ sub _warmup_openid {
   for my $provider (values %$providers) {
     next unless $provider->{well_known_url};
     $app->log->debug("Fetching OpenID configuration from $provider->{well_known_url}");
-    push @p, $self->_warmup_openid_provider_p($provider);
+    push @p, $self->_warmup_openid_provider_p($app, $provider);
   }
 
-  return @p && Mojo::Promise->all(@p)->catch(sub { $app->log->error(shift) })->wait;
+  return @p && Mojo::Promise->all(@p)->wait;
 }
 
 sub _warmup_openid_provider_p {
-  my ($self, $provider) = @_;
+  my ($self, $app, $provider) = @_;
 
   return $self->_ua->get_p($provider->{well_known_url})->then(sub {
     my $tx  = shift;
@@ -222,6 +222,9 @@ sub _warmup_openid_provider_p {
     my $tx = shift;
     $provider->{jwt} = Mojo::JWT->new->add_jwkset($tx->result->json);
     return $provider;
+  })->catch(sub {
+    my $err = shift;
+    $app->log->error("[OAuth2] Failed to warm up $provider->{well_known_url}: $err");
   });
 }
 
