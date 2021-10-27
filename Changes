@@ -8,6 +8,7 @@ Revision history for perl distribution Mojolicious-Plugin-OAuth2
  - Add "debian_salsa" as an OAuth2 id provider #62
    Contributor: Gregor Herrmann
  - Moved mock code to Mojolicious::Plugin::OAuth2::Mock
+ - Bumped Mojolicious version to 8.25
 
 1.59 2021-02-17T08:33:17+0900
  - Fix invalid "=item" in documentation.
