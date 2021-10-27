@@ -9,7 +9,7 @@ use Mojo::UserAgent;
 use constant MOJO_JWT => !!(eval { require Mojo::JWT; require Crypt::OpenSSL::RSA; require Crypt::OpenSSL::Bignum; 1 });
 
 our @CARP_NOT = qw(Mojolicious::Plugin::OAuth2 Mojolicious::Renderer);
-our $VERSION  = '1.59';
+our $VERSION  = '2.00';
 
 has providers => sub {
   return {
