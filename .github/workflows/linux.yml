@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           cpanm -n --installdeps .
-          cpanm -n Cpanel::JSON::XS EV Role::Tiny IO::Socket::SSL
+          cpanm -n Crypt::OpenSSL::Bignum Crypt::OpenSSL::RSA IO::Socket::SSL Mojo::JWT
           cpanm -n Test::Pod Test::Pod::Coverage
       - name: Run tests
         run: prove -l t
