@@ -1,6 +1,6 @@
 Revision history for perl distribution Mojolicious-Plugin-OAuth2
 
-2.01 Not Release
+2.01 2021-10-28T18:29:45+0900
  - Test suite is compatible with older versions of Mojolicious
  - OpenID Connect require Mojo::JWT 0.09
 
