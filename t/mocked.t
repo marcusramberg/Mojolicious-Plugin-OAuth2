@@ -13,6 +13,8 @@ use Test::More;
     return $c->oauth2->get_token_p('mocked', {redirect => 0})->then(sub {
       return $c->render(text => 'No token') unless my $provider_res = shift;    # Redirect
       return $c->render(text => "Token $provider_res->{access_token}");
+    })->catch(sub {
+      return $c->render(text => shift, status => 500);
     });
   };
 
@@ -22,6 +24,8 @@ use Test::More;
     return $c->oauth2->get_token_p('mocked')->then(sub {
       return unless my $provider_res = shift;                                   # Redirect
       return $c->render(text => "Token $provider_res->{access_token}");
+    })->catch(sub {
+      return $c->render(text => shift, status => 500);
     });
   };
 }
@@ -39,7 +43,7 @@ is($res->path,                 $callback_url->path, 'Returns to the right place'
 is($res->query->param('code'), 'fake_code',         'Includes fake code');
 
 $t->get_ok($res)->status_is(200)->content_is('Token fake_token');
-$t->get_ok('/profile?error=access_denied')->status_is(500)->content_like(qr{>access_denied<});
+$t->get_ok('/profile?error=access_denied')->status_is(500)->content_is('access_denied');
 
 $t->get_ok('/no-redirect')->status_is(200)->content_like(qr{No token});
 

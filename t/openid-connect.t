@@ -16,7 +16,7 @@ plugin OAuth2 => {mocked =>
 
 get '/' => sub { shift->render('index') };
 
-any "/connect" => sub {
+any '/connect' => sub {
   my $c = shift;
   $c->render_later;
 
@@ -61,7 +61,7 @@ get '/end_session' => sub {
 get '/refresh' => sub {
   my $c = shift;
   $c->render_later;
-  $c->oauth2->get_refresh_token_p(mocked => {refresh_token => $c->session('refresh_token') . "+"})->then(sub {
+  $c->oauth2->get_refresh_token_p(mocked => {refresh_token => $c->session('refresh_token') . '+'})->then(sub {
     my $res = shift;
     $c->session(refresh_token => $res->{refresh_token});
     $c->render(json => $res);
@@ -85,7 +85,7 @@ group {
 
 my $t = Test::Mojo->new;
 
-subtest 'warmup of provvider data' => sub {
+subtest 'warmup of provider data' => sub {
   my $provider_conf = $t->app->oauth2->providers->{mocked};
 
   is $provider_conf->{scope},        'openid', 'scope';
@@ -106,7 +106,7 @@ subtest 'Authorize and obtain token - form_post response_mode' => sub {
     $action = $dom->at('form')->attr('action');
     $form
       = {code => $dom->at('input[name=code]')->attr('value'), state => $dom->at('input[name=state]')->attr('value')};
-    $t->test(is => Mojo::URL->new($action)->is_abs, 1, 'absolute url');
+    ok +Mojo::URL->new($action)->is_abs, 'absolute url';
   });
   $t->post_ok($action, form => $form)->status_is(200)->json_is('/aud' => 'c0e71b99-2c66-42e7-8589-6502153a7e3')
     ->json_is('/email' => 'foo.bar@example.com')
