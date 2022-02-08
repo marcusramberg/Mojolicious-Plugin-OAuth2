@@ -9,13 +9,16 @@ sub make_app {
 
   $app->plugin(
     OAuth2 => {
-      test => {
-        authorize_url => '/oauth/authorize',
-        token_url     => '/oauth/token',
-        key           => 'fake_key',
-        secret        => 'fake_secret',
-        scope         => 'a,b,c',
-      }
+      ua        => $app->ua,
+      providers => {
+        test => {
+          authorize_url => '/oauth/authorize',
+          token_url     => '/oauth/token',
+          key           => 'fake_key',
+          secret        => 'fake_secret',
+          scope         => 'a,b,c',
+        },
+      },
     }
   );
 

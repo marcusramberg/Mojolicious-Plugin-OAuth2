@@ -4,7 +4,7 @@ use t::Helper;
 my $app = t::Helper->make_app;
 my $t   = Test::Mojo->new($app);
 
-Mojo::Util::monkey_patch('Mojolicious::Plugin::OAuth2', _ua => sub { $t->ua });
+$t->app->ua->server($t->ua->server);
 
 $app->routes->get(
   '/oauth-delayed' => sub {

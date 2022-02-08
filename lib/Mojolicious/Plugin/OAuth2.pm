@@ -50,7 +50,14 @@ has _ua => sub { Mojo::UserAgent->new };
 
 sub register {
   my ($self, $app, $config) = @_;
-  my $providers = $self->providers;
+
+  if ($config->{providers}) {
+    $self->_config_to_providers($config->{providers});
+    $self->_ua($config->{ua}) if $config->{ua};
+  }
+  else {
+    $self->_config_to_providers($config);
+  }
 
   $app->helper('oauth2.auth_url'            => sub { $self->_call(_auth_url            => @_) });
   $app->helper('oauth2.get_refresh_token_p' => sub { $self->_call(_get_refresh_token_p => @_) });
@@ -59,8 +66,7 @@ sub register {
   $app->helper('oauth2.logout_url'          => sub { $self->_call(_logout_url          => @_) });
   $app->helper('oauth2.providers'           => sub { $self->providers });
 
-  $self->_config_to_providers($config);
-  $self->_apply_mock($providers->{mocked}) if $providers->{mocked}{key};
+  $self->_apply_mock($self->providers->{mocked}) if $self->providers->{mocked}{key};
   $self->_warmup_openid($app);
 }
 
@@ -241,9 +247,11 @@ Mojolicious::Plugin::OAuth2 - Auth against OAuth2 APIs including OpenID Connect
   use Mojolicious::Lite;
 
   plugin OAuth2 => {
-    facebook => {
-      key    => 'some-public-app-id',
-      secret => $ENV{OAUTH2_FACEBOOK_SECRET},
+    providers => {
+      facebook => {
+        key    => 'some-public-app-id',
+        secret => $ENV{OAUTH2_FACEBOOK_SECRET},
+      },
     },
   };
 
@@ -462,24 +470,47 @@ Holds a hash of provider information. See L</oauth2.providers>.
 =head2 register
 
   $app->plugin(OAuth2 => \%provider_config);
+  $app->plugin(OAuth2 => {providers => \%provider_config, ua => Mojo::UserAgent->new});
 
 Will register this plugin in your application with a given C<%provider_config>.
 The keys in C<%provider_config> are provider names and the values are
 configuration for each provider. Note that the value will be merged with the
 predefined providers below.
 
+Instead of just passing in C<%provider_config>, it is possible to pass in a
+more complex config, with these keys:
+
+=over 2
+
+=item * providers
+
+The C<%provider_config> must be present under this key.
+
+=item * ua
+
+A custom L<Mojo::UserAgent>, in case you want to change proxy settings,
+timeouts or other attributes.
+
+=back
+
+Instead of just passing in C<%provider_config>, it is possible to pass in a
+hash-ref "providers" (C<%provider_config>) and "ua" (a custom
+L<Mojo::UserAgent> object).
+
 Here is an example to add adddition information like "key" and "secret":
 
   $app->plugin(OAuth2 => {
-    custom_provider => {
-      key           => 'APP_ID',
-      secret        => 'SECRET_KEY',
-      authorize_url => 'https://provider.example.com/auth',
-      token_url     => 'https://provider.example.com/token',
-    },
-    github => {
-      key    => 'APP_ID',
-      secret => 'SECRET_KEY',
+    providers => {
+      custom_provider => {
+        key           => 'APP_ID',
+        secret        => 'SECRET_KEY',
+        authorize_url => 'https://provider.example.com/auth',
+        token_url     => 'https://provider.example.com/token',
+      },
+      github => {
+        key    => 'APP_ID',
+        secret => 'SECRET_KEY',
+      },
     },
   });
 
@@ -487,10 +518,12 @@ For L<OpenID Connect|https://openid.net/connect/>, C<authorize_url> and C<token_
 C<well_known_url> so these are replaced by the C<well_known_url> key.
 
   $app->plugin(OAuth2 => {
-    azure_ad => {
-      key            => 'APP_ID',
-      secret         => 'SECRET_KEY',
-      well_known_url => 'https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration',
+    providers => {
+      azure_ad => {
+        key            => 'APP_ID',
+        secret         => 'SECRET_KEY',
+        well_known_url => 'https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration',
+      },
     },
   });
 
