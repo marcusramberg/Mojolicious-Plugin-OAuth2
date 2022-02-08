@@ -3,6 +3,7 @@ Revision history for perl distribution Mojolicious-Plugin-OAuth2
 2.02 Not Released
  - Add support for passing in custom "ua"
  - Add support for "providers" key in plugin config
+ - Add support for "proxy" in plugin config
 
 2.01 2021-10-28T18:29:45+0900
  - Test suite is compatible with older versions of Mojolicious

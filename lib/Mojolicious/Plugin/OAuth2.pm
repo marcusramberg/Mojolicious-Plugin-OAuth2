@@ -54,6 +54,7 @@ sub register {
   if ($config->{providers}) {
     $self->_config_to_providers($config->{providers});
     $self->_ua($config->{ua}) if $config->{ua};
+    $self->_ua->proxy->detect if $config->{proxy};
   }
   else {
     $self->_config_to_providers($config);
@@ -470,7 +471,7 @@ Holds a hash of provider information. See L</oauth2.providers>.
 =head2 register
 
   $app->plugin(OAuth2 => \%provider_config);
-  $app->plugin(OAuth2 => {providers => \%provider_config, ua => Mojo::UserAgent->new});
+  $app->plugin(OAuth2 => {providers => \%provider_config, proxy => 1, ua => Mojo::UserAgent->new});
 
 Will register this plugin in your application with a given C<%provider_config>.
 The keys in C<%provider_config> are provider names and the values are
@@ -485,6 +486,11 @@ more complex config, with these keys:
 =item * providers
 
 The C<%provider_config> must be present under this key.
+
+=item * proxy
+
+Setting this to a true value will automatically detect proxy settings using
+L<Mojo::UserAgent::Proxy/detect>.
 
 =item * ua
 
