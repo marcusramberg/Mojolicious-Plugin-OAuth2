@@ -425,11 +425,11 @@ Scope to ask for credentials to. Should be a space separated list.
 
 =head2 oauth2.jwt_decode
 
-  $claims = $c->oauth2->jwt_decode($provider, sub { my $jwt = shift; ... });
-  $claims = $c->oauth2->jwt_decode($provider);
+  $claims = $c->oauth2->jwt_decode($provider, data => $provider_res->{id_token}, sub { my $jwt = shift; ... });
+  $claims = $c->oauth2->jwt_decode($provider, data => $provider_res->{id_token});
 
 When L<Mojolicious::Plugin::OAuth2> is being used in OpenID Connect mode this
-helper allows you to decode the response data encoded with the JWKS discovered
+helper allows you to decode response data encoded with the JWKS discovered
 from C<well_known_url> configuration.
 
 =head2 oauth2.logout_url
