@@ -37,6 +37,10 @@ has providers => sub {
       authorize_url => 'https://github.com/login/oauth/authorize',
       token_url     => 'https://github.com/login/oauth/access_token',
     },
+    gitlab => {
+      authorize_url => 'https://gitlab.com/oauth/authorize?response_type=code',
+      token_url     => 'https://gitlab.com/oauth/token',
+    },
     google => {
       authorize_url => 'https://accounts.google.com/o/oauth2/v2/auth?response_type=code',
       token_url     => 'https://www.googleapis.com/oauth2/v4/token',
@@ -571,6 +575,12 @@ See also L<https://www.instagram.com/developer/authentication/>.
 Authentication with Github.
 
 See also L<https://developer.github.com/v3/oauth/>.
+
+=head3 gitlab
+
+Authentication with GitLab.
+
+See also L<https://docs.gitlab.com/ee/integration/oauth_provider.html>.
 
 =head3 google
 
