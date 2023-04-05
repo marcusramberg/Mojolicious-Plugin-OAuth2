@@ -572,7 +572,7 @@ See also L<https://www.instagram.com/developer/authentication/>.
 
 =head3 github
 
-Authentication with Github.
+Authentication with GitHub.
 
 See also L<https://developer.github.com/v3/oauth/>.
 
